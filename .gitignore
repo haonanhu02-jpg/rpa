@@ -138,6 +138,7 @@ secrets.yaml
 .cookie.json
 .remote-cookies/
 .casdoor-env-*
+.http-deploy-*
 
 # =============================================================================
 # Backup & Archive Files

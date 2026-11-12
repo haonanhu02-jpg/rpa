@@ -1,5 +1,65 @@
 # 192.168.3.110 HTTP deployment
 
+## 自动部署 / 更新（推荐）
+
+在 `192.168.3.110` 上确认已有 Git、Python 3、Docker、Docker Compose
+2.24.4 或更新版本，以及 `flock`（通常由 util-linux 提供）。以下下载步骤
+还需要 curl。允许客户端访问 TCP 32742 和 8000。
+
+```bash
+curl -fL --retry 3 --connect-timeout 10 \
+  https://raw.githubusercontent.com/haonanhu02-jpg/rpa/main/deploy-http.sh \
+  -o deploy-http.sh
+sudo bash deploy-http.sh
+```
+
+默认部署目录为 `/opt/astron-rpa`，默认分支为 `main`，服务端地址为
+`192.168.3.110`。自定义目录时可运行：
+
+```bash
+sudo env APP_DIR=/home/wsgfai/rpa SERVER_IP=192.168.3.110 bash deploy-http.sh
+```
+
+重复运行同一命令即可更新。已有目录必须是对应分支的干净 Git 仓库；
+脚本只允许快进更新，不会覆盖未提交文件。直接连接 GitHub 会重试三次；
+如需镜像，可由部署者显式设置 `GIT_MIRROR_URL`，默认不使用第三方镜像。
+
+首次部署缺少 `.env` 时，脚本自动生成数据库和 MinIO 凭据，以及私有就绪
+检查 token；已有 `.env` 会保留原密码和认证证书，并更新 HTTP 地址。
+如果检测到已有数据库容器或当前 Compose 项目的数据卷却缺少 `.env`，
+脚本会停止，要求恢复原配置，不会为旧数据库重新生成密码。
+项目目录名为 `docker`，默认 Compose 项目名也是 `docker`；已有部署若设置过
+`COMPOSE_PROJECT_NAME`，更新时必须继续使用相同值。
+
+流程依次为：获取代码、准备配置、拉取基础镜像、构建当前源码、启动基础
+服务、等待 Casdoor 并同步凭据、执行 Atlas 迁移、启动业务服务、验证入口。
+脚本不会运行 `docker compose down` 或删除数据卷。构建失败时不会进入
+服务重建阶段；数据库迁移和容器重建阶段发生失败时，可能已经留下部分更新，
+需排查后重新运行；脚本不提供自动回滚。
+
+只有以下检查全部通过，才会打印“部署成功”：所有必需容器运行且已有健康
+检查通过；AI/OpenAPI 内部接口可用；OpenAPI 数据库/Redis 就绪；Java 服务
+内部 HTTP 可响应；本机及服务器 IP 上的网关、认证 API、Casdoor 页面均可访问。
+默认每个等待阶段约 300 秒，可用 `DEPLOY_TIMEOUT` 调整；正在执行的单次
+探测有独立超时，实际等待可能略长。检查只发起只读请求，不会启动 RPA 任务。
+
+成功后输出：
+
+- 认证管理网站：<http://192.168.3.110:8000/>
+- 服务端检查链接：<http://192.168.3.110:32742/health>
+- Windows 客户端 `remote_addr`：`http://192.168.3.110:32742/`
+
+认证网站是 Casdoor，不是 RPA Web 控制台；当前 32742 端口首页返回 404。
+客户端登录、上传下载和实际流程执行仍需人工验收，其他电脑的访问还取决于
+网络和防火墙。请修改 Casdoor 默认管理员密码。
+
+失败会以非零退出码结束，打印失败阶段、原因、可能的镜像/网络/磁盘/端口/
+数据库认证问题，以及详细日志位置。日志由当前用户私有保存，可能包含
+连接串或业务信息，请勿直接公开。脚本开始时即打印日志位置，可在另一个
+终端查看构建进度。AI/OCR 外部服务仍需按功能补充提供商凭据。
+
+## 手动部署
+
 This guide is for a fresh installation with empty MySQL storage. Changing
 `.env` does not rotate a password in an existing MySQL database. If this host
 already has an installation, back up its data and migrate credentials first;
