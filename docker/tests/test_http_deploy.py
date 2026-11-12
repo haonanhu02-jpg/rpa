@@ -167,9 +167,16 @@ class ShellDeploymentTest(unittest.TestCase):
             tools = root / "bin"
             tools.mkdir()
             mocks = {
-                "git": """case "$*" in
+                "git": """echo "git $*" >> "$MOCK_CALLS"
+case "$*" in
 *"branch --show-current"*) echo main;;
-*fetch*) [ "$SCENARIO" != git_failure ];;
+*fetch*)
+ echo 'mock-git-download-progress'
+ if [ "$SCENARIO" = fetch_timeout ]; then /usr/bin/sleep 3; fi
+ [ "$SCENARIO" != git_failure ] || exit 1
+ if [ "$SCENARIO" = mirror_failure ]; then
+  case "$*" in *ghfast.top*) exit 1;; esac
+ fi;;
 *) exit 0;;
 esac
 """,
@@ -199,7 +206,7 @@ esac
                 path = tools / name
                 path.write_text("#!/usr/bin/env bash\n" + content, encoding="utf-8", newline="\n")
                 path.chmod(0o755)
-            command = """export APP_DIR="$2/app" TMPDIR="$2" MOCK_CALLS="$2/calls" PATH="$2/bin:$PATH" DEPLOY_TIMEOUT=1
+            command = """export APP_DIR="$2/app" TMPDIR="$2" MOCK_CALLS="$2/calls" PATH="$2/bin:$PATH" DEPLOY_TIMEOUT=1 GIT_FETCH_TIMEOUT=1
 export SCENARIO="$3"
 bash "$1"
 """
@@ -250,6 +257,35 @@ bash "$1"
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("获取项目代码", result.stderr)
         self.assertNotIn("compose build", calls)
+        self.assertNotIn("compose up", calls)
+        fetches = [line for line in calls.splitlines() if " fetch " in line]
+        self.assertEqual(len(fetches), 4)
+        self.assertTrue(all("ghfast.top" in line for line in fetches[:3]))
+        self.assertNotIn("ghfast.top", fetches[3])
+
+    def test_mirror_success_shows_progress_without_using_origin(self):
+        result, calls = self.run_deployment("success")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        fetches = [line for line in calls.splitlines() if " fetch " in line]
+        self.assertEqual(len(fetches), 1)
+        self.assertIn("https://ghfast.top/https://github.com/haonanhu02-jpg/rpa.git", fetches[0])
+        self.assertIn("--progress", fetches[0])
+        self.assertIn("mock-git-download-progress", result.stdout)
+
+    def test_three_failed_mirror_attempts_fall_back_to_origin(self):
+        result, calls = self.run_deployment("mirror_failure")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        fetches = [line for line in calls.splitlines() if " fetch " in line]
+        self.assertEqual(len(fetches), 4)
+        self.assertTrue(all("ghfast.top" in line for line in fetches[:3]))
+        self.assertNotIn("ghfast.top", fetches[3])
+        self.assertIn("回退 GitHub 原站", result.stdout)
+
+    def test_stalled_fetch_times_out_without_restarting_services(self):
+        result, calls = self.run_deployment("fetch_timeout")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("失败或超时", result.stdout)
+        self.assertIn("镜像重试 3 次及 GitHub 原站回退均失败", result.stderr)
         self.assertNotIn("compose up", calls)
 
     def test_missing_env_with_existing_database_stops_before_build(self):

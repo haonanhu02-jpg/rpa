@@ -4,13 +4,20 @@
 
 在 `192.168.3.110` 上确认已有 Git、Python 3、Docker、Docker Compose
 2.24.4 或更新版本，以及 `flock`（通常由 util-linux 提供）。以下下载步骤
-还需要 curl。允许客户端访问 TCP 32742 和 8000。
+还需要 curl，脚本使用 coreutils 的 timeout 和 tee。允许客户端访问 TCP 32742 和 8000。
 
 ```bash
-curl -fL --retry 3 --connect-timeout 10 \
+if curl -fL --retry 3 --connect-timeout 10 --max-time 60 \
+  https://ghfast.top/https://raw.githubusercontent.com/haonanhu02-jpg/rpa/main/deploy-http.sh \
+  -o deploy-http.sh.new || \
+curl -fL --retry 3 --connect-timeout 10 --max-time 60 \
   https://raw.githubusercontent.com/haonanhu02-jpg/rpa/main/deploy-http.sh \
-  -o deploy-http.sh
-sudo bash deploy-http.sh
+  -o deploy-http.sh.new; then
+  mv deploy-http.sh.new deploy-http.sh
+  sudo bash deploy-http.sh
+else
+  echo '镜像和原站均下载失败，请检查网络；未执行部署。' >&2
+fi
 ```
 
 默认部署目录为 `/opt/astron-rpa`，默认分支为 `main`，服务端地址为
@@ -21,8 +28,13 @@ sudo env APP_DIR=/home/wsgfai/rpa SERVER_IP=192.168.3.110 bash deploy-http.sh
 ```
 
 重复运行同一命令即可更新。已有目录必须是对应分支的干净 Git 仓库；
-脚本只允许快进更新，不会覆盖未提交文件。直接连接 GitHub 会重试三次；
-如需镜像，可由部署者显式设置 `GIT_MIRROR_URL`，默认不使用第三方镜像。
+脚本只允许快进更新，不会覆盖未提交文件。默认先使用
+`https://ghfast.top/https://github.com/haonanhu02-jpg/rpa.git` 拉取代码，
+失败重试至三次后，再回退 GitHub 原站一次。每次都会显示来源、尝试次数和
+Git 下载进度，并同时保存到日志。镜像地址可用 `GIT_MIRROR_URL` 覆盖。
+单次拉取默认最多 300 秒，可通过 `GIT_FETCH_TIMEOUT` 调整；连接持续低速
+超过 60 秒时也会中止重试，避免一直无输出地等待。此镜像用于 GitHub 代码，
+基础容器镜像继续通过 Docker 原有仓库或服务器已配置的 registry mirrors 拉取。
 
 首次部署缺少 `.env` 时，脚本自动生成数据库和 MinIO 凭据，以及私有就绪
 检查 token；已有 `.env` 会保留原密码和认证证书，并更新 HTTP 地址。

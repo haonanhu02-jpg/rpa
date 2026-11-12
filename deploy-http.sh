@@ -7,8 +7,9 @@ APP_DIR="${APP_DIR:-/opt/astron-rpa}"
 SERVER_IP="${SERVER_IP:-192.168.3.110}"
 BRANCH="${BRANCH:-main}"
 GITHUB_URL="https://github.com/haonanhu02-jpg/rpa.git"
-# Optional operator-controlled mirror. No third-party mirror is trusted by default.
-GIT_MIRROR_URL="${GIT_MIRROR_URL:-}"
+# Mirror first, matching the deployment workflow used on this server.
+GIT_MIRROR_URL="${GIT_MIRROR_URL:-https://ghfast.top/https://github.com/haonanhu02-jpg/rpa.git}"
+GIT_FETCH_TIMEOUT="${GIT_FETCH_TIMEOUT:-300}"
 DEPLOY_TIMEOUT="${DEPLOY_TIMEOUT:-300}"
 export GIT_TERMINAL_PROMPT=0
 export GCM_INTERACTIVE=never
@@ -49,11 +50,12 @@ step() {
     "$@" >>"$LOG_FILE" 2>&1
 }
 
-for tool in git python3 docker flock; do
+for tool in git python3 docker flock timeout tee; do
     command -v "$tool" >/dev/null || fail "缺少命令 $tool，请先安装。"
 done
 [[ "$APP_DIR" = /* && "$APP_DIR" != / ]] || fail 'APP_DIR 必须是绝对目录，且不能为 /。'
 [[ "$DEPLOY_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || fail 'DEPLOY_TIMEOUT 必须为正整数秒数。'
+[[ "$GIT_FETCH_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || fail 'GIT_FETCH_TIMEOUT 必须为正整数秒数。'
 python3 -c 'import ipaddress,sys; ipaddress.IPv4Address(sys.argv[1])' "$SERVER_IP" >>"$LOG_FILE" 2>&1 || fail 'SERVER_IP 必须是有效 IPv4 地址。'
 COMPOSE_VERSION=$(docker compose version --short 2>>"$LOG_FILE")
 python3 -c 'import re,sys; v=tuple(map(int,re.search(r"(\d+)\.(\d+)\.(\d+)",sys.argv[1]).groups())); sys.exit(v < (2,24,4))' "$COMPOSE_VERSION" >>"$LOG_FILE" 2>&1 || fail '需要 Docker Compose 2.24.4 或更新版本。'
@@ -64,8 +66,9 @@ exec 9>"${APP_DIR}.deploy.lock"
 flock -n 9 || fail '该目录已有部署正在执行，请等待其结束。'
 
 STAGE='获取项目代码'
-REASON='GitHub 拉取失败，请检查网络和仓库访问权限；现有容器尚未重建。'
-git_local() { git -c http.version=HTTP/1.1 -c http.lowSpeedLimit=1024 -c http.lowSpeedTime=60 -c "safe.directory=$APP_DIR" "$@"; }
+REASON='镜像重试 3 次及 GitHub 原站回退均失败，请检查网络和仓库访问权限；现有容器尚未重建。'
+GIT_OPTIONS=(-c http.version=HTTP/1.1 -c http.lowSpeedLimit=1024 -c http.lowSpeedTime=60 -c "safe.directory=$APP_DIR")
+git_local() { git "${GIT_OPTIONS[@]}" "$@"; }
 if [[ -d "$APP_DIR/.git" ]]; then
     [[ -z $(git_local -C "$APP_DIR" status --porcelain) ]] || fail '项目目录有未提交修改，请先保存或提交；脚本不会覆盖这些文件。'
     [[ $(git_local -C "$APP_DIR" branch --show-current) = "$BRANCH" ]] || fail "当前分支不是 $BRANCH，请先切换到部署分支。"
@@ -79,15 +82,25 @@ else
 fi
 
 FETCHED=false
-for source_url in "$GITHUB_URL" "$GIT_MIRROR_URL"; do
-    [[ -n "$source_url" ]] || continue
-    for attempt in 1 2 3; do
-        printf '获取代码：第 %s 次尝试\n' "$attempt"
-        if git_local -C "$APP_DIR" fetch --no-tags "$source_url" "$BRANCH" >>"$LOG_FILE" 2>&1; then
+for source_kind in 镜像 GitHub原站; do
+    if [[ "$source_kind" = 镜像 ]]; then
+        source_url="$GIT_MIRROR_URL"
+        attempts=3
+        echo '优先通过 GitHub 镜像获取代码。'
+    else
+        source_url="$GITHUB_URL"
+        attempts=1
+        echo '镜像不可用，回退 GitHub 原站。'
+    fi
+    for ((attempt=1; attempt<=attempts; attempt++)); do
+        printf '%s拉取：第 %s/%s 次尝试（单次最多 %s 秒）\n' "$source_kind" "$attempt" "$attempts" "$GIT_FETCH_TIMEOUT"
+        if timeout --kill-after=10s "${GIT_FETCH_TIMEOUT}s" \
+            git "${GIT_OPTIONS[@]}" -C "$APP_DIR" fetch --progress --no-tags "$source_url" "$BRANCH" 2>&1 | tee -a "$LOG_FILE"; then
             FETCHED=true
             break
         fi
-        sleep 3
+        printf '%s第 %s 次拉取失败或超时。\n' "$source_kind" "$attempt"
+        if (( attempt < attempts )); then sleep 3; fi
     done
     [[ "$FETCHED" = false ]] || break
 done
