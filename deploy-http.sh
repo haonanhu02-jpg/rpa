@@ -96,6 +96,10 @@ for source_kind in 镜像 GitHub原站; do
         printf '%s拉取：第 %s/%s 次尝试（单次最多 %s 秒）\n' "$source_kind" "$attempt" "$attempts" "$GIT_FETCH_TIMEOUT"
         if timeout --kill-after=10s "${GIT_FETCH_TIMEOUT}s" \
             git "${GIT_OPTIONS[@]}" -C "$APP_DIR" fetch --progress --no-tags "$source_url" "$BRANCH" 2>&1 | tee -a "$LOG_FILE"; then
+            if ! git_local -C "$APP_DIR" cat-file -e FETCH_HEAD:docker/scripts/project-images.py 2>>"$LOG_FILE"; then
+                echo '该代码来源尚未同步项目镜像加速脚本，尝试下一来源。'
+                break
+            fi
             FETCHED=true
             break
         fi
@@ -125,7 +129,14 @@ if [[ ! -e .env ]]; then
 fi
 step '准备 HTTP 配置' '配置生成失败；已有 .env 必须包含有效的数据库和 MinIO 凭据，且不能是符号链接。' python3 "$HELPER" prepare --server-ip "$SERVER_IP"
 step '校验 Compose' 'Compose 配置无效，请检查 .env 和 Compose 版本。' docker compose config --quiet
-step '拉取基础镜像' '基础镜像拉取失败，可能是网络、镜像标签、权限或 CPU 架构问题。' docker compose pull mysql redis minio casdoor atlas openresty-nginx
+# Scope builder selection and mirror cache to this deployment process/project.
+export BUILDX_BUILDER=default
+export DOCKER_BUILDKIT=1
+STAGE='通过加速站准备本项目 Docker 镜像'
+REASON='项目镜像加速失败，请检查上方具体镜像、网络、标签、架构或 Buildx 错误。'
+echo ">>> $STAGE（不修改服务器 Docker 配置）"
+python3 "$APP_DIR/docker/scripts/project-images.py" 2>&1 | tee -a "$LOG_FILE"
+step '校验项目镜像缓存配置' '生成的项目镜像缓存配置无效。' docker compose config --quiet
 step '构建当前后端源码' '构建失败，请在私有日志中检查 Maven/Python 依赖下载、编译错误或磁盘空间。' docker compose build
 step '启动数据库和基础服务' 'MySQL、Redis、MinIO 或 Casdoor 启动失败或健康检查超时。' docker compose up -d --wait --wait-timeout "$DEPLOY_TIMEOUT" mysql redis minio casdoor
 

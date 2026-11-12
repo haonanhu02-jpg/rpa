@@ -34,7 +34,42 @@ sudo env APP_DIR=/home/wsgfai/rpa SERVER_IP=192.168.3.110 bash deploy-http.sh
 Git 下载进度，并同时保存到日志。镜像地址可用 `GIT_MIRROR_URL` 覆盖。
 单次拉取默认最多 300 秒，可通过 `GIT_FETCH_TIMEOUT` 调整；连接持续低速
 超过 60 秒时也会中止重试，避免一直无输出地等待。此镜像用于 GitHub 代码，
-基础容器镜像继续通过 Docker 原有仓库或服务器已配置的 registry mirrors 拉取。
+Docker 镜像采用下面的项目级加速流程。
+
+### 本项目 Docker 镜像加速
+
+默认通过 DaoCloud 的 `docker.m.daocloud.io` 拉取本项目的基础服务镜像，
+以及 Dockerfile 中的 Maven、Java、Python 构建/运行镜像。每个加速来源尝试
+两次，再回退原始仓库一次；实时显示下载进度。已下载完整的镜像会复用，
+无需重新下载。加速站也可能限流或缺少某个版本，原站回退失败时会报告具体
+镜像名称和 Docker 错误。参考 [DaoCloud 官方用法](https://github.com/DaoCloud/public-image-mirror#加速-docker)。
+
+范围限定在本项目：不修改 `/etc/docker/daemon.json`，不重新加载或重启 Docker，
+不改变客户端默认构建器，不覆盖原始镜像标签。新增标签使用
+`astron-rpa-cache/<项目标识>/<镜像标识>:cached`，配置和临时 Dockerfile
+位于 `docker/.local/accelerated/`（已被 Git 忽略），`.env` 自动引用生成的
+Compose 覆盖文件。原始 Dockerfile 保持不变。
+
+需要 Docker Buildx 的 `default` 构建器使用 `docker` 驱动，脚本仅通过当前
+进程的 `BUILDX_BUILDER=default` 选择它，以使用本机已缓存的镜像。生成的
+Dockerfile 使用引擎内置 frontend，避免额外下载 Dockerfile frontend 镜像。
+这是本机架构的 Linux 部署流程，未提供跨架构构建。
+
+可按需设置环境变量：
+
+- `DOCKER_IMAGE_MIRRORS`：逗号分隔的 Docker Hub 加速站域名/路径，默认 `docker.m.daocloud.io`。
+- `IMAGE_PULL_TIMEOUT`：单次镜像拉取超时，默认 600 秒。
+- `REFRESH_IMAGES=1`：忽略已有缓存，重新从加速站检查和拉取镜像。
+
+例如：
+
+```bash
+sudo env IMAGE_PULL_TIMEOUT=300 bash deploy-http.sh
+```
+
+这个加速范围不包括容器内的 apt、pip、Maven 依赖下载；如果这些步骤失败，
+脚本会在构建阶段报告失败并保留私有日志。镜像缓存、应用镜像和构建缓存仍
+占用本机磁盘空间。
 
 首次部署缺少 `.env` 时，脚本自动生成数据库和 MinIO 凭据，以及私有就绪
 检查 token；已有 `.env` 会保留原密码和认证证书，并更新 HTTP 地址。
@@ -43,7 +78,7 @@ Git 下载进度，并同时保存到日志。镜像地址可用 `GIT_MIRROR_URL
 项目目录名为 `docker`，默认 Compose 项目名也是 `docker`；已有部署若设置过
 `COMPOSE_PROJECT_NAME`，更新时必须继续使用相同值。
 
-流程依次为：获取代码、准备配置、拉取基础镜像、构建当前源码、启动基础
+流程依次为：获取代码、准备配置、通过加速站准备本项目镜像、构建当前源码、启动基础
 服务、等待 Casdoor 并同步凭据、执行 Atlas 迁移、启动业务服务、验证入口。
 脚本不会运行 `docker compose down` 或删除数据卷。构建失败时不会进入
 服务重建阶段；数据库迁移和容器重建阶段发生失败时，可能已经留下部分更新，

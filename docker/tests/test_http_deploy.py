@@ -171,12 +171,15 @@ class ShellDeploymentTest(unittest.TestCase):
 case "$*" in
 *"branch --show-current"*) echo main;;
 *fetch*)
+ echo "$*" > "$MOCK_CALLS.source"
  echo 'mock-git-download-progress'
  if [ "$SCENARIO" = fetch_timeout ]; then /usr/bin/sleep 3; fi
  [ "$SCENARIO" != git_failure ] || exit 1
  if [ "$SCENARIO" = mirror_failure ]; then
   case "$*" in *ghfast.top*) exit 1;; esac
  fi;;
+*cat-file*)
+ if [ "$SCENARIO" = stale_mirror ] && grep -q ghfast.top "$MOCK_CALLS.source"; then exit 1; fi;;
 *) exit 0;;
 esac
 """,
@@ -196,6 +199,11 @@ esac
   exit 1
  fi;;
 *sync-casdoor-credentials.py*) [ "$SCENARIO" != sync_failure ];;
+*project-images.py*)
+ if [ "$SCENARIO" = image_failure ]; then
+  echo 'mysql:8.4.6 加速站与原站均拉取失败'
+  exit 1
+ fi;;
 *) exit 0;;
 esac
 """,
@@ -245,6 +253,16 @@ bash "$1"
         self.assertNotIn("compose up", calls)
         self.assertNotIn("部署成功", result.stdout)
 
+    def test_image_acceleration_failure_never_builds_or_starts_services(self):
+        result, calls = self.run_deployment("image_failure")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("本项目 Docker 镜像", result.stderr)
+        self.assertIn("mysql:8.4.6", result.stdout)
+        self.assertNotIn("compose build", calls)
+        self.assertNotIn("compose up", calls)
+        self.assertNotIn("daemon.json", calls)
+        self.assertNotIn("restart", calls)
+
     def test_failed_readiness_prints_service_reason_without_success(self):
         result, _ = self.run_deployment("readiness_failure")
         self.assertNotEqual(result.returncode, 0)
@@ -280,6 +298,15 @@ bash "$1"
         self.assertTrue(all("ghfast.top" in line for line in fetches[:3]))
         self.assertNotIn("ghfast.top", fetches[3])
         self.assertIn("回退 GitHub 原站", result.stdout)
+
+    def test_stale_code_mirror_falls_back_before_running_old_helpers(self):
+        result, calls = self.run_deployment("stale_mirror")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        fetches = [line for line in calls.splitlines() if " fetch " in line]
+        self.assertEqual(len(fetches), 2)
+        self.assertIn("ghfast.top", fetches[0])
+        self.assertNotIn("ghfast.top", fetches[1])
+        self.assertIn("尚未同步", result.stdout)
 
     def test_stalled_fetch_times_out_without_restarting_services(self):
         result, calls = self.run_deployment("fetch_timeout")
