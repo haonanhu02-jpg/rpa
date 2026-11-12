@@ -20,6 +20,54 @@ class ProjectImagesTest(unittest.TestCase):
     def result(self, code=0, stdout=""):
         return subprocess.CompletedProcess([], code, stdout, "")
 
+    def test_prepare_uses_supported_inspect_command_not_nonexistent_format_flag(self):
+        def docker(*args, **kwargs):
+            if args[0] == "buildx":
+                if "--format" in args:
+                    return subprocess.CompletedProcess(args, 1, "", "unknown flag: --format")
+                if args[1] == "version":
+                    return self.result(stdout="github.com/docker/buildx v0.12.1")
+                return self.result(stdout="Name:          default\nDriver:        docker\nNodes:\n")
+            if args[0] == "compose":
+                return self.result(1)
+            self.fail("Unexpected operation before configuration was checked")
+
+        with (
+            patch.object(IMAGES, "docker", side_effect=docker),
+            self.assertRaisesRegex(ValueError, "无法读取本项目 Compose 配置"),
+        ):
+            IMAGES.prepare()
+
+    def test_missing_buildx_is_reported_as_plugin_failure(self):
+        with (
+            patch.object(IMAGES, "docker", return_value=self.result(1)),
+            self.assertRaisesRegex(ValueError, "Buildx 插件不可用"),
+        ):
+            IMAGES.prepare()
+
+    def test_non_docker_driver_reports_actual_driver_without_modifying_builder(self):
+        calls = []
+
+        def docker(*args, **kwargs):
+            calls.append(args)
+            if args == ("buildx", "version"):
+                return self.result(stdout="github.com/docker/buildx v0.12.1")
+            return self.result(stdout="Name: default\nDriver: docker-container\n")
+
+        with patch.object(IMAGES, "docker", side_effect=docker), self.assertRaisesRegex(ValueError, "docker-container"):
+            IMAGES.prepare()
+        self.assertEqual(calls, [("buildx", "version"), ("buildx", "inspect", "default")])
+
+    def test_inspect_failure_is_not_misreported_as_missing_plugin(self):
+        def docker(*args, **kwargs):
+            return self.result(0 if args == ("buildx", "version") else 1)
+
+        with (
+            patch.object(IMAGES, "docker", side_effect=docker),
+            self.assertRaisesRegex(ValueError, "无法读取 default 构建器"),
+        ):
+            IMAGES.prepare()
+
     def test_mirror_reference_keeps_repository_tag_and_digest(self):
         for source, expected in (
             ("mysql:8.4.6", "library/mysql:8.4.6"),
@@ -114,7 +162,7 @@ class ProjectImagesTest(unittest.TestCase):
 
             def docker(*args, **kwargs):
                 if args[0] == "buildx":
-                    return self.result(stdout="docker\n")
+                    return self.result(stdout="Name: default\nDriver: docker\nNodes:\n")
                 if args[0] == "compose":
                     return self.result(stdout=json.dumps(config))
                 self.fail("Unexpected Docker operation: " + str(args))
@@ -176,7 +224,9 @@ class ProjectImagesTest(unittest.TestCase):
             original = compose_config()
 
             def docker(*args, **kwargs):
-                return self.result(stdout="docker" if args[0] == "buildx" else json.dumps(original))
+                return self.result(
+                    stdout="Name: default\nDriver: docker\nNodes:\n" if args[0] == "buildx" else json.dumps(original)
+                )
 
             with (
                 patch.object(IMAGES, "ROOT", docker_root),

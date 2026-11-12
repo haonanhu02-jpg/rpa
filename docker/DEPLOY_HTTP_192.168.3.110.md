@@ -55,6 +55,11 @@ Compose 覆盖文件。原始 Dockerfile 保持不变。
 Dockerfile 使用引擎内置 frontend，避免额外下载 Dockerfile frontend 镜像。
 这是本机架构的 Linux 部署流程，未提供跨架构构建。
 
+构建器检查先运行 `docker buildx version`，再运行
+`docker buildx inspect default` 并读取 `Driver:` 字段；`inspect` 不支持
+`--format` 参数。插件缺失、构建器读取失败和驱动不匹配会分别报告，
+不会因检查失败自动安装插件、创建构建器或重启 Docker。
+
 可按需设置环境变量：
 
 - `DOCKER_IMAGE_MIRRORS`：逗号分隔的 Docker Hub 加速站域名/路径，默认 `docker.m.daocloud.io`。

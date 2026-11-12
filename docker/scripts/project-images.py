@@ -139,9 +139,20 @@ def prepare():
         raise ValueError("IMAGE_PULL_TIMEOUT 必须为正整数秒数")
     prefixes = mirror_prefixes()
     # Use Engine's local image store. This selects a builder for this process only.
-    driver = docker("buildx", "inspect", "default", "--format", "{{.Driver}}")
-    if driver.returncode or driver.stdout.strip() != "docker":
-        raise ValueError("需要 Docker Buildx 的 default/docker 构建器，以复用本项目预拉取的镜像；未修改构建器配置")
+    version = docker("buildx", "version")
+    if version.returncode:
+        raise ValueError("Docker Buildx 插件不可用：docker buildx version 执行失败；请检查插件安装和权限")
+    # `buildx inspect` has no --format option. Read its documented Driver field.
+    driver = docker("buildx", "inspect", "default")
+    if driver.returncode:
+        raise ValueError(
+            "无法读取 default 构建器：请运行 docker buildx inspect default 查看错误；未修改构建器或 Docker 配置"
+        )
+    match = re.search(r"^Driver:[ \t]*(\S+)", driver.stdout, re.MULTILINE)
+    if not match:
+        raise ValueError("Buildx 检查结果缺少 Driver 字段，请运行 docker buildx inspect default 查看输出")
+    if match[1] != "docker":
+        raise ValueError(f"default 构建器使用 {match[1]} 驱动，需要 docker 驱动才能复用本机缓存；未修改构建器配置")
     result = docker("compose", "config", "--format", "json")
     if result.returncode:
         raise ValueError("无法读取本项目 Compose 配置")
