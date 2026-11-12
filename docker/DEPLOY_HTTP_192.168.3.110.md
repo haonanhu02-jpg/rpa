@@ -72,7 +72,13 @@ Dockerfile 使用引擎内置 frontend，避免额外下载 Dockerfile frontend 
 sudo env IMAGE_PULL_TIMEOUT=300 bash deploy-http.sh
 ```
 
-这个加速范围不包括容器内的 apt、pip、Maven 依赖下载；如果这些步骤失败，
+Python 镜像安装使用从各服务 `uv.lock` 导出的 `requirements.lock`，固定版本
+并验证 SHA256；优先使用清华 PyPI 镜像，失败后回退官方 PyPI。
+可通过 `PYPI_INDEX_URL`、`PYPI_FALLBACK_INDEX_URL` 设置这两个镜像构建参数，
+不修改服务器 pip 全局配置。更新 Python 依赖后，在服务目录执行
+`uv export --frozen --no-dev --no-emit-project --format requirements.txt --output-file requirements.lock`。
+
+这个加速范围不包括容器内的 apt、Maven 依赖下载；如果这些步骤失败，
 脚本会在构建阶段报告失败并保留私有日志。镜像缓存、应用镜像和构建缓存仍
 占用本机磁盘空间。
 

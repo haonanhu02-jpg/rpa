@@ -17,20 +17,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# 升级pip
-RUN pip install --upgrade pip
-
-# 复制项目依赖文件
-COPY backend/openapi-service/pyproject.toml backend/openapi-service/uv.lock ./
-
-# 复制rpawebsocket wheel文件
-COPY backend/openapi-service/app/utils/rpawebsocket-1.0.7-py3-none-any.whl ./
-
-# 安装本地rpawebsocket wheel文件
-RUN pip install --no-cache-dir rpawebsocket-1.0.7-py3-none-any.whl
-
-# 安装项目依赖
-RUN pip install --no-cache-dir -e .
+ARG PYPI_INDEX_URL=https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple
+ARG PYPI_FALLBACK_INDEX_URL=https://pypi.org/simple
+COPY backend/openapi-service/requirements.lock ./requirements.lock
+# Keep the local wheel at the relative path recorded in the exported lock.
+COPY backend/openapi-service/app/utils/rpawebsocket-1.0.7-py3-none-any.whl ./app/utils/
+RUN python -m pip install --no-cache-dir --require-hashes --timeout 60 --retries 3 \
+        --index-url "$PYPI_INDEX_URL" -r requirements.lock \
+    || python -m pip install --no-cache-dir --require-hashes --timeout 60 --retries 3 \
+        --index-url "$PYPI_FALLBACK_INDEX_URL" -r requirements.lock
 
 # 复制项目代码
 COPY backend/openapi-service/app/ ./app/

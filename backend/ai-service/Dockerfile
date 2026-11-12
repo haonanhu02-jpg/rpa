@@ -17,14 +17,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# 升级pip
-RUN pip install --upgrade pip
-
-# 复制项目依赖文件
-COPY backend/ai-service/pyproject.toml backend/ai-service/uv.lock ./
-
-# 安装项目依赖
-RUN pip install --no-cache-dir -e .
+# Install the runtime snapshot exported from uv.lock, with verified file hashes.
+# Package indexes apply to this image build only, never the host pip config.
+ARG PYPI_INDEX_URL=https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple
+ARG PYPI_FALLBACK_INDEX_URL=https://pypi.org/simple
+COPY backend/ai-service/requirements.lock ./requirements.lock
+RUN python -m pip install --no-cache-dir --require-hashes --timeout 60 --retries 3 \
+        --index-url "$PYPI_INDEX_URL" -r requirements.lock \
+    || python -m pip install --no-cache-dir --require-hashes --timeout 60 --retries 3 \
+        --index-url "$PYPI_FALLBACK_INDEX_URL" -r requirements.lock
 
 # 复制项目代码
 COPY backend/ai-service/app/ ./app/

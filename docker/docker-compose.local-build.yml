@@ -7,12 +7,18 @@ services:
     build:
       context: ..
       dockerfile: backend/ai-service/Dockerfile
+      args:
+        PYPI_INDEX_URL: ${PYPI_INDEX_URL:-https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple}
+        PYPI_FALLBACK_INDEX_URL: ${PYPI_FALLBACK_INDEX_URL:-https://pypi.org/simple}
   openapi-service:
     image: astron-rpa-local/openapi-service:local
     pull_policy: never
     build:
       context: ..
       dockerfile: backend/openapi-service/Dockerfile
+      args:
+        PYPI_INDEX_URL: ${PYPI_INDEX_URL:-https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple}
+        PYPI_FALLBACK_INDEX_URL: ${PYPI_FALLBACK_INDEX_URL:-https://pypi.org/simple}
   resource-service:
     image: astron-rpa-local/resource-service:local
     pull_policy: never
