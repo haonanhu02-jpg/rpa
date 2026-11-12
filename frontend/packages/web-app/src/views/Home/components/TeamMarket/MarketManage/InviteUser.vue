@@ -1,0 +1,125 @@
+<script setup lang="ts">
+import { TabPane, Tabs } from 'ant-design-vue'
+import { computed, nextTick, ref, watch } from 'vue'
+
+import i18next from '@/plugins/i18next'
+
+import { useUserStore } from '@/stores/useUserStore'
+import LinkInvite from '@/views/Home/components/TeamMarket/MarketManage/LinkInvite.vue'
+import PhoneInvite from '@/views/Home/components/TeamMarket/MarketManage/PhoneInvite.vue'
+
+const { marketId } = defineProps({
+  marketId: {
+    type: String,
+    default: '',
+  },
+  users: {
+    type: Array,
+    default: () => [],
+  },
+})
+
+const emit = defineEmits(['change', 'inviteTypeChange', 'linkChange'])
+const userStore = useUserStore()
+const t = i18next.t.bind(i18next)
+const tabs = computed(() => {
+  return [
+    { key: 'phone', tab: t('market.directAdd'), show: userStore.currentTenant?.tenantType !== 'personal' },
+    { key: 'link', tab: t('market.inviteLink'), show: userStore.currentTenant?.tenantType !== 'enterprise' },
+  ].filter(i => i.show)
+})
+
+const activeTab = ref(tabs.value[0]?.key || 'link')
+nextTick(() => {
+  emit('inviteTypeChange', activeTab.value)
+})
+
+watch(tabs, (newTabs) => {
+  if (!newTabs.some(tab => tab.key === activeTab.value)) {
+    activeTab.value = newTabs[0]?.key || 'link'
+    emit('inviteTypeChange', activeTab.value)
+  }
+})
+</script>
+
+<template>
+  <div class="modal-form invite-user-modal">
+    <Tabs v-if="tabs?.length > 1" v-model:active-key="activeTab" type="card" size="small" @change="(key) => emit('inviteTypeChange', key)">
+      <TabPane v-for="tab in tabs" :key="tab.key" :tab="tab.tab" />
+    </Tabs>
+    <LinkInvite v-if="activeTab === 'link'" :market-id="marketId" @link-change="(link: string) => emit('linkChange', link)" />
+    <PhoneInvite v-if="activeTab === 'phone'" :market-id="marketId" :selected-users="users" @change="(userList: any[]) => emit('change', userList)" />
+  </div>
+</template>
+
+<style lang="scss">
+.invite-user-modal {
+  .ant-modal-confirm-content {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .ant-tabs-nav-wrap,
+  .ant-tabs-nav-list {
+    width: 100%;
+    border-radius: 8px;
+    .ant-tabs-tab {
+      width: 50%;
+    }
+  }
+  .ant-tabs > .ant-tabs-nav {
+    margin-bottom: 24px;
+    &:before {
+      display: none;
+    }
+  }
+  .ant-tabs-content-holder {
+    height: 100%;
+  }
+  .ant-tabs-content {
+    height: 100%;
+  }
+  .ant-tabs-nav-list {
+    background-color: #ecedf4;
+    border: none;
+    border-radius: 8px !important;
+    padding: 3px;
+
+    .ant-tabs-tab {
+      border: none;
+      border-radius: 6px !important;
+      text-align: center;
+      background: transparent;
+      .ant-tabs-tab-btn {
+        width: 100%;
+        color: #000000a6;
+      }
+      &.ant-tabs-tab-active {
+        background-color: #ffffff;
+        box-shadow: none;
+        .ant-tabs-tab-btn {
+          color: #000000d9;
+        }
+      }
+    }
+  }
+}
+.dark .invite-user-modal {
+  .ant-tabs-nav-list {
+    background-color: #141414;
+    padding: 3px 3px 2px;
+    .ant-tabs-tab {
+      .ant-tabs-tab-btn {
+        color: #ffffffa6;
+      }
+      &.ant-tabs-tab-active {
+        background-color: #ffffff1f;
+        box-shadow: 0px -1px 0px 0px rgba(255, 255, 255, 0.3);
+        .ant-tabs-tab-btn {
+          color: #ffffffd9;
+        }
+      }
+    }
+  }
+}
+</style>

@@ -1,0 +1,64 @@
+<script setup lang="ts">
+import { DownOutlined } from '@ant-design/icons-vue'
+import { Button, Dropdown, Menu } from 'ant-design-vue'
+
+import i18next from '@/plugins/i18next'
+
+import { MARKET_USER_OWNER, USER_TYPES } from '@/views/Home/components/TeamMarket/config/market'
+
+const props = defineProps({
+  userType: {
+    type: String,
+    default: '',
+  },
+  popContainerType: {
+    type: String,
+    default: '',
+  },
+  type: {
+    type: String as any,
+    default: 'link',
+  },
+})
+
+const emit = defineEmits(['change'])
+
+const t = i18next.t.bind(i18next)
+
+function menuItemClick(menuItem) {
+  menuItem.domEvent.stopPropagation()
+  menuItem.domEvent.preventDefault()
+  emit('change', menuItem.key)
+}
+
+const userTypes = USER_TYPES.filter(item => item.key !== MARKET_USER_OWNER)
+const getPopContainer = triggerNode => (props.popContainerType === 'parent' ? triggerNode.parentNode : document.body)
+const getTypeName = userType => USER_TYPES.find(item => item.key === userType)?.name
+</script>
+
+<template>
+  <Dropdown
+    :get-popup-container="getPopContainer"
+    :disabled="userType === MARKET_USER_OWNER"
+  >
+    <Button class="ant-dropdown-link inline-flex items-center" :class="props.type === 'link' ? 'p-0 !pr-[5px]' : 'ml-[5px] border border-[#000000]/[.15] dark:border-[#FFFFFF]/[.15]'" :type="props.type" @click="e => e.preventDefault()">
+      <span>{{ t(getTypeName(props.userType) || '') }}</span>
+      <DownOutlined />
+    </Button>
+    <template #overlay>
+      <Menu
+        slot="overlay"
+        style="padding: 0;"
+        @click="(menuItem) => menuItemClick(menuItem)"
+      >
+        <Menu.Item v-for="item in userTypes" :key="item.key" class="powerItem">
+          {{ t(item.name) }}
+        </Menu.Item>
+      </Menu>
+    </template>
+  </Dropdown>
+</template>
+
+<style lang="scss" scoped>
+
+</style>

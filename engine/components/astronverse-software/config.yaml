@@ -1,0 +1,17 @@
+atomic:
+  Software.open:
+    icon: open-program
+    path:
+    - /atomicTree/desktop
+  Software.close:
+    icon: close-program
+    path:
+    - /atomicTree/desktop
+  Software.cmd:
+    icon: cmd-command
+    inputList:
+    - key: cmd
+    outputList:
+    - key: exec_cmd
+    path:
+    - /atomicTree/desktop

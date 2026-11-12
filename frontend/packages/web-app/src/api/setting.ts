@@ -1,0 +1,113 @@
+import { blob2Text } from '@/utils/common'
+
+import { fileRead, fileWrite } from '@/api/resource'
+import type { ITableResponse } from '@/types/normalTable'
+
+import http from './http'
+
+const useSettingPath = './.setting.json'
+
+export async function getUserSetting() {
+  try {
+    const { data } = await fileRead({ path: useSettingPath })
+    const result = await blob2Text<string>(data)
+    return JSON.parse(result || '{}')
+  }
+  catch {
+    return {}
+  }
+}
+
+export async function setUserSetting(params: RPA.UserSetting) {
+  return fileWrite({ path: useSettingPath, mode: 'w', content: JSON.stringify(params) })
+}
+
+/**
+ * @returns 获取自动启动状态
+ */
+export async function autoStartStatus() {
+  const res = await http.post<{ autostart: boolean }>('/scheduler/window/auto_start/check', null)
+
+  return res.data.autostart
+}
+/**
+ * @returns 设置自动启动
+ */
+export function autoStartEnable() {
+  return http.post('/scheduler/window/auto_start/enable', null)
+}
+/**
+ * @returns 关闭自动启动
+ */
+export function autoStartDisable() {
+  return http.post('/scheduler/window/auto_start/disable', null)
+}
+/**
+ * @returns 检查视频文件是否存在
+ */
+export function checkVideoPaths(data) {
+  return http.post('/scheduler/video/play', data, { toast: false })
+}
+
+/**
+ * @description: 邮箱短信设置
+ */
+export function toolsInterfacePost(data) {
+  return http.post('/scheduler/alert/test', data)
+}
+
+/**
+ * @description: 获取Api Key列表数据
+ */
+export async function getApis(params) {
+  const res = await http.get<ITableResponse>('/api/rpa-openapi/api-keys/get', params)
+  return res.data || { records: [], total: 0 }
+}
+
+/**
+ * @description: 删除API Key
+ */
+export function deleteAPI(params) {
+  return http.post('/api/rpa-openapi/api-keys/remove', params)
+}
+
+/**
+ * @description: 新增API Key
+ */
+export async function createAPI(params) {
+  const res = await http.post('/api/rpa-openapi/api-keys/create', params)
+  return res.data
+}
+
+/**
+ * @description: 获取Agent Api Key列表数据
+ */
+export async function getAgentApis(params) {
+  const res = await http.get('/api/rpa-openapi/api-keys/get-astron', params)
+  return res.data
+}
+
+/**
+ * @description: 删除Agent API Key
+ */
+export function deleteAgentAPI(id: number) {
+  return http.post('/api/rpa-openapi/api-keys/remove-astron', { id })
+}
+
+/**
+ * @description: 新增Agent API Key
+ */
+export async function createAgentAPI<T>(params: T) {
+  const res = await http.post<{ id: number }>('/api/rpa-openapi/api-keys/create-astron', params)
+  return res.data
+}
+
+/**
+ * @description: 更新Agent API Key
+ * @param params
+ * @returns
+ */
+export async function updateAgentApi<T>(params: T) {
+  const res = await http.post<{ id: number }>('/api/rpa-openapi/api-keys/update-astron', params)
+  return res.data
+}

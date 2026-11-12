@@ -1,0 +1,150 @@
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  task:
+    shutdown: graceful
+    graceful-shutdown-timeout: 20s
+  servlet:
+    multipart:
+      max-request-size: 110MB
+      max-file-size: 100MB
+      file-size-threshold: 100MB
+  redis:
+    database: ${REDIS_DB}
+    host: ${REDIS_HOST}
+    port: ${REDIS_PORT}
+    password: ${REDIS_PASSWORD}
+    pool:
+      max-active: 300
+      max-idle: 20
+      max-wait: 10000
+      min-idle: 0
+    timeout: 10000
+    lettuce:
+      shutdown-timeout: 100ms
+      pool:
+        shutdown-timeout: 100ms
+  datasource:
+    url: jdbc:mysql://${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_NAME}?serverTimezone=GMT%2B8&zeroDateTimeBehavior=round&useUnicode=true&characterEncoding=utf-8&useSSL=false&allowMultiQueries=true&allowPublicKeyRetrieval=true
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driverClassName: com.mysql.cj.jdbc.Driver
+    platform: mysql
+    type: com.alibaba.druid.pool.DruidDataSource
+    initialSize: 1
+    minIdle: 3
+    maxActive: 20
+    maxWait: 60000
+    timeBetweenEvictionRunsMillis: 60000
+    minEvictableIdleTimeMillis: 30000
+    validationQuery: select 'x'
+    testWhileIdle: true
+    testOnBorrow: false
+    testOnReturn: false
+    poolPreparedStatements: true
+    maxPoolPreparedStatementPerConnectionSize: 20
+    filters: stat,wall,slf4j
+    connectionProperties: druid.stat.mergeSql=true;druid.stat.slowSqlMillis=2000;druid.stat.logSlowSql=true;druid.stat.enabled=true
+    druid:
+      remove-abandoned: true
+      remove-abandoned-timeout: 180
+      log-abandoned: true
+      test-while-idle: true
+      validation-query: SELECT 1
+      shutdown-timeout: 30s
+  session:
+    store-type: redis
+    redis:
+      flush-mode: on_save
+      namespace: spring:session
+    timeout: 86400s  # 24小时
+
+mybatis-plus:
+  mapper-locations: classpath:/mapper/*/*.xml
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+
+resource:
+  download:
+    url: /api/resource/file/download?fileId=
+
+
+#日志相关配置
+logging:
+  level:
+    org:
+      springframework:
+        boot:
+          autoconfigure: info
+  config: classpath:logback-delayed.xml
+
+redis:
+  open: "true"
+
+# 机器人监控表格导出大小限制， 表格行数
+robotExcel:
+  lineSizeLimit: 3000
+
+# 防抖相关参数
+deBounce:
+  prefix: "doBouncePrefix::"
+  window: 500
+
+
+report:
+  export:
+    strategy: excel
+  excel:
+    sheet:
+      name: "机器人执行记录"
+    buffer:
+      size: 16384
+  robot:
+    maxLines: 50000
+    fileNameTemplate: "{tenant}_{dept}_机器人分析数据.xlsx"
+    titleTemplate: "部门：{dept} 统计区间段：{start} --> {end}"
+
+
+#  允许配置在此处的地址跨域请求接口
+#  前后端分离时如果前端的域和后端不一样，请将前端的域配置在此处,注意是域名或ip即可，不需要端口号
+allowed:
+  origins: localhost
+
+# 短信配置
+sms:
+  apiUrl: 
+  secretKey: 
+  appId: 
+  tid: 
+  # 告警消息模板
+  alarmTemplate: 告警通知：{0} 触发规则【{1}】告警，操作者【{2}】，角色【{3}】，请登录平台查看。
+
+example:
+  expoUserId: b6306b95-ebf2-4aed-97ff-e65d463958fe
+
+uap:
+  database:
+    name: uap_db
+
+auth:
+  base-url: http://rpa-opensource-rpa-auth:10251
+  check-session-path: /api/rpa-auth/check-session
+
+# 团队市场相关配置
+market:
+  maxCreateCount: 3 # 个人版-团队市场创建个数限制
+  invite:
+    maxJoinCount: 10  # 邀请链接最大加入人数
+
+package:
+  download: https://www.iflyrpa.com/api/resource/cloud/s3/downloadDataExe
+
+astron:
+  agent:
+    api:
+      key: "zyzhou666!"

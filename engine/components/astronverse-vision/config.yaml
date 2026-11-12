@@ -1,0 +1,22 @@
+atomic:
+  CV.cv_click:
+    icon: click-image
+    path:
+    - /atomicTree/cv
+  CV.hover_image:
+    icon: mouse-hover-image
+    path:
+    - /atomicTree/cv
+  CV.is_image_exist:
+    icon: if-image-exists
+    path:
+    - /atomicTree/code/if
+    - /atomicTree/cv
+  CV.wait_image:
+    icon: wait-image
+    path:
+    - /atomicTree/cv
+  CV.image_input:
+    icon: image-input-box
+    path:
+    - /atomicTree/cv

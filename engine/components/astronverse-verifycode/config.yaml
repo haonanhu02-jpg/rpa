@@ -1,0 +1,13 @@
+atomic:
+  VerifyCode.picture_code:
+    icon: captcha-text
+    path:
+    - /atomicTreeExtend/ai/verify
+  VerifyCode.slider_code:
+    icon: captcha-slider
+    path:
+    - /atomicTreeExtend/ai/verify
+  VerifyCode.click_code:
+    icon: captcha-click
+    path:
+    - /atomicTreeExtend/ai/verify

@@ -1,0 +1,138 @@
+name: Style check
+
+on:
+  workflow_call:
+
+concurrency:
+  group: style-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  checks: write
+  statuses: write
+  contents: read
+
+jobs:
+  python-style:
+    name: Python Style
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v46
+        with:
+          files: |
+            engine/**
+            .github/workflows/style.yml
+
+      - name: Setup UV and Python
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+          python-version: "3.13"
+          cache-dependency-glob: engine/uv.lock
+
+      - name: Install dependencies
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: uv sync --project engine --dev
+      
+      - name: Run Ruff check
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: uv run --project engine --dev ruff format ./engine --check
+
+      - name: Install scheduler test dependencies
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: uv sync --project engine/servers/astronverse-scheduler --dev --frozen
+
+      - name: Run scheduler tests
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: uv run --project engine/servers/astronverse-scheduler --dev --no-sync pytest engine/servers/astronverse-scheduler/tests
+
+  java-style:
+    name: Java Style
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v46
+        with:
+          files: |
+            backend/robot-service/**
+            backend/resource-service/**
+            .github/workflows/style.yml
+
+      - name: Setup JDK Corretto 21 with Maven 3.8.4
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'corretto'
+          java-version: '21'
+          maven-version: '3.8.4'
+
+      - name: Run Spotless check in robot-service
+        if: steps.changed-files.outputs.any_changed == 'true'
+        working-directory: backend/robot-service
+        run: mvn -B -DskipTests -DskipITs spotless:check
+
+      - name: Run Spotless check in resource-service
+        if: steps.changed-files.outputs.any_changed == 'true'
+        working-directory: backend/resource-service
+        run: mvn -B -DskipTests -DskipITs spotless:check
+
+  web-style:
+    name: Web Style
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v46
+        with:
+          files: frontend/**
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          package_json_file: frontend/package.json
+          run_install: false
+
+      - name: Setup NodeJS
+        uses: actions/setup-node@v4
+        if: steps.changed-files.outputs.any_changed == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ./frontend/package.json
+
+      - name: Web dependencies
+        if: steps.changed-files.outputs.any_changed == 'true'
+        working-directory: ./frontend
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Web style check
+        if: steps.changed-files.outputs.any_changed == 'true'
+        working-directory: ./frontend
+        run: |
+          pnpm run lint:fix

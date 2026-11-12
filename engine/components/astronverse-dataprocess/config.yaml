@@ -1,0 +1,185 @@
+atomic:
+  DataProcess.set_variable_value:
+    icon: set-variable-value
+    path:
+    - /atomicTree/code
+  DataConvertProcess.json_convertor:
+    icon: json-string-convert
+    path:
+    - /atomicTree/data/data.String
+  DataConvertProcess.other_to_str:
+    icon: format-to-text
+    path:
+    - /atomicTree/data/data.String
+  DataConvertProcess.str_to_other:
+    icon: text-convert-format
+    path:
+    - /atomicTree/data/data.String
+  DictProcess.create_new_dict:
+    icon: create-new-dict
+    path:
+    - /atomicTree/data/data.Dict
+  DictProcess.set_value_to_dict:
+    icon: dict-set-value
+    path:
+    - /atomicTree/data/data.Dict
+  DictProcess.delete_value_from_dict:
+    icon: dict-delete-value
+    path:
+    - /atomicTree/data/data.Dict
+  DictProcess.get_value_from_dict:
+    icon: dict-get-value
+    path:
+    - /atomicTree/data/data.Dict
+  DictProcess.get_keys_from_dict:
+    icon: get-dict-all-keys
+    path:
+    - /atomicTree/data/data.Dict
+  DictProcess.get_values_from_dict:
+    icon: get-dict-all-values
+    path:
+    - /atomicTree/data/data.Dict
+  ListProcess.create_new_list:
+    icon: create-new-list
+    path:
+    - /atomicTree/data/data.List
+  ListProcess.clear_list:
+    icon: list-clear
+    path:
+    - /atomicTree/data/data.List
+  ListProcess.insert_value_to_list:
+    icon: list-insert-value
+    path:
+    - /atomicTree/data/data.List
+  ListProcess.change_value_in_list:
+    icon: list-modify-value
+    path:
+    - /atomicTree/data/data.List
+  ListProcess.get_list_position:
+    icon: get-value-position
+    path:
+    - /atomicTree/data/data.List
+  ListProcess.remove_value_from_list:
+    icon: list-remove-value
+    path:
+    - /atomicTree/data/data.List
+  ListProcess.sort_list:
+    icon: list-sort
+    path:
+    - /atomicTree/data/data.List
+  ListProcess.random_shuffle_list:
+    icon: list-shuffle
+    path:
+    - /atomicTree/data/data.List
+  ListProcess.filter_elements_from_list:
+    icon: list-remove-multiple
+    path:
+    - /atomicTree/data/data.List
+  ListProcess.reverse_list:
+    icon: list-reverse
+    path:
+    - /atomicTree/data/data.List
+  ListProcess.merge_list:
+    icon: list-merge
+    path:
+    - /atomicTree/data/data.List
+  ListProcess.get_unique_list:
+    icon: list-remove-duplicates
+    path:
+    - /atomicTree/data/data.List
+  ListProcess.get_common_elements_from_list:
+    icon: get-list-duplicates
+    path:
+    - /atomicTree/data/data.List
+  ListProcess.get_value_from_list:
+    icon: get-list-value-by-index
+    path:
+    - /atomicTree/data/data.List
+  ListProcess.get_length_of_list:
+    icon: get-list-length
+    path:
+    - /atomicTree/data/data.List
+  MathProcess.generate_random_number:
+    icon: generate-random-number
+    path:
+    - /atomicTree/data/data.Math
+  MathProcess.get_rounding_number:
+    icon: round-number
+    path:
+    - /atomicTree/data/data.Math
+  MathProcess.self_calculation_number:
+    icon: increment-decrement
+    path:
+    - /atomicTree/data/data.Math
+  MathProcess.get_absolute_number:
+    icon: get-absolute-value
+    path:
+    - /atomicTree/data/data.Math
+  MathProcess.calculate_expression:
+    icon: math-calculation
+    path:
+    - /atomicTree/data/data.Math
+  StringProcess.extract_content_from_string:
+    icon: text-extract-content
+    path:
+    - /atomicTree/data/data.String
+  StringProcess.replace_content_in_string:
+    icon: text-replace-content
+    path:
+    - /atomicTree/data/data.String
+  StringProcess.merge_list_to_string:
+    icon: list-to-text
+    path:
+    - /atomicTree/data/data.String
+  StringProcess.split_string_to_list:
+    icon: text-split-to-list
+    path:
+    - /atomicTree/data/data.String
+  StringProcess.concatenate_string:
+    icon: text-merge
+    path:
+    - /atomicTree/data/data.String
+  StringProcess.fill_string_to_length:
+    icon: text-pad-to-length
+    path:
+    - /atomicTree/data/data.String
+  StringProcess.strip_string:
+    icon: text-trim-spaces
+    path:
+    - /atomicTree/data/data.String
+  StringProcess.cut_string_to_length:
+    icon: screenshot-fixed-text
+    path:
+    - /atomicTree/data/data.String
+  StringProcess.change_case_of_string:
+    icon: change-text-case
+    path:
+    - /atomicTree/data/data.String
+  StringProcess.get_string_length:
+    icon: get-text-length
+    path:
+    - /atomicTree/data/data.String
+  TimeProcess.get_current_time:
+    icon: get-current-time
+    path:
+    - /atomicTree/data/data.Time
+  TimeProcess.set_time:
+    icon: set-time
+    path:
+    - /atomicTree/data/data.Time
+  TimeProcess.time_to_timestamp:
+    icon: datetime-to-timestamp
+    path:
+    - /atomicTree/data/data.Time
+  TimeProcess.timestamp_to_time:
+    icon: timestamp-to-datetime
+    path:
+    - /atomicTree/data/data.Time
+  TimeProcess.get_time_difference:
+    icon: get-time-difference
+    path:
+    - /atomicTree/data/data.Time
+  TimeProcess.format_datetime:
+    icon: output-formatted-time
+    path:
+    - /atomicTree/data/data.Time

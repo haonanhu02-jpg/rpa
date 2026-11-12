@@ -1,0 +1,49 @@
+atomic:
+  Network.ftp_create:
+    icon: ftp-create-connection
+    path:
+    - /atomicTree/network/ftp
+  Network.ftp_close:
+    icon: ftp-close-connection
+    path:
+    - /atomicTree/network/ftp
+  Network.get_work_dir:
+    icon: get-work-directory
+    path:
+    - /atomicTree/network/ftp
+  Network.change_working_dir:
+    icon: change-work-directory
+    path:
+    - /atomicTree/network/ftp
+  Network.create_folder:
+    icon: create-folder
+    path:
+    - /atomicTree/network/ftp
+  Network.get_ftp_list:
+    icon: get-folder
+    path:
+    - /atomicTree/network/ftp
+  Network.ftp_rename:
+    icon: rename-folder
+    path:
+    - /atomicTree/network/ftp
+  Network.ftp_upload:
+    icon: upload-folder
+    path:
+    - /atomicTree/network/ftp
+  Network.ftp_download:
+    icon: download-folder
+    path:
+    - /atomicTree/network/ftp
+  Network.ftp_delete:
+    icon: delete-folder-ftp
+    path:
+    - /atomicTree/network/ftp
+  Network.http_request:
+    icon: http-request
+    path:
+    - /atomicTree/network/http
+  Network.http_download:
+    icon: http-download
+    path:
+    - /atomicTree/network/http

@@ -1,0 +1,65 @@
+atomic:
+  DataTable.read_data:
+    icon: read_data_table
+    path:
+    - /atomicTree/datatable
+  DataTable.write_data:
+    icon: write_data_table
+    path:
+    - /atomicTree/datatable
+  DataTable.get_max_row:
+    icon: get_max_row
+    path:
+    - /atomicTree/datatable
+  DataTable.get_max_column:
+    icon: get_max_column
+    path:
+    - /atomicTree/datatable
+  DataTable.copy_data:
+    icon: copy_data_table
+    path:
+    - /atomicTree/datatable
+  DataTable.paste_data:
+    icon: paste_data_table
+    path:
+    - /atomicTree/datatable
+  DataTable.delete_data:
+    icon: delete_data_table
+    path:
+    - /atomicTree/datatable
+  DataTable.loop_data_table:
+    icon: loop_data_table
+    path:
+    - /atomicTree/datatable
+  DataTable.insert_row_column:
+    icon: insert_row_column
+    path:
+    - /atomicTree/datatable
+  DataTable.insert_formula:
+    icon: insert_formula
+    path:
+    - /atomicTree/datatable
+  DataTable.set_column_title:
+    icon: set_column_title
+    path:
+    - /atomicTree/datatable
+  DataTable.get_column_title:
+    icon: get_column_title
+    path:
+    - /atomicTree/datatable
+  DataTable.find_and_replace:
+    icon: find_and_replace
+    path:
+    - /atomicTree/datatable
+  DataTable.filter_data_table:
+    icon: filter_data_table
+    path:
+    - /atomicTree/datatable
+  DataTable.import_data_table_from_file:
+    icon: import_data_table
+    path:
+    - /atomicTree/datatable
+  DataTable.export_data_table_to_file:
+    icon: export_data_table
+    path:
+    - /atomicTree/datatable

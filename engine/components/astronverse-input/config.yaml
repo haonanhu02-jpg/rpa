@@ -1,0 +1,42 @@
+atomic:
+  Gui.keyboard:
+    icon: keyboard-input
+    path:
+    - /atomicTree/keyboard
+  Gui.key_input:
+    icon: keyboard-simulate-key
+    path:
+    - /atomicTree/keyboard
+  Gui.mouse:
+    icon: mouse-click
+    path:
+    - /atomicTree/keyboard
+  Gui.mouse_wheel:
+    icon: mouse-scroll-webpage
+    path:
+    - /atomicTree/keyboard
+  Gui.mouse_move_new:
+    icon: mouse-move
+    path:
+    - /atomicTree/keyboard
+  Gui.mouse_drag:
+    icon: mouse-drag
+    path:
+    - /atomicTree/keyboard
+  Gui.mouse_position:
+    icon: get-mouse-position
+    path:
+    - /atomicTree/keyboard
+  Gui.mouse_move:
+    icon: mouse-move
+    inputList:
+    - key: window_type
+    - key: window_position
+    - key: get_mouse_position
+    - key: position_x
+    - key: position_y
+    - key: move_type
+    - key: move_speed
+    outputList: []
+    path:
+    - /atomicTree/keyboard

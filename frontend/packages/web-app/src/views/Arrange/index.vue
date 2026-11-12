@@ -1,0 +1,57 @@
+<script setup lang="ts">
+import { onBeforeUnmount, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
+
+import { startPickServices, stopPickServices } from '@/api/engine'
+import { taskNotify } from '@/api/task'
+import Header from '@/components/Header.vue'
+import HeaderControl from '@/components/HeaderControl/HeaderControl.vue'
+import { useProcessStore } from '@/stores/useProcessStore'
+import { useRunlogStore } from '@/stores/useRunlogStore'
+import { useRunningStore } from '@/stores/useRunningStore'
+
+const processStore = useProcessStore()
+const runningStore = useRunningStore()
+
+const projectId = useRoute()?.query?.projectId as string
+const projectName = useRoute()?.query?.projectName as string
+const projectVersion = Number(useRoute()?.query?.projectVersion) || 0
+
+processStore.setProject({ id: projectId, name: projectName, version: projectVersion })
+
+let isStart = false
+
+onMounted(async () => {
+  taskNotify({ event: 'login' })
+  runningStore.fetchDataTable()
+  await startPickServices({})
+  isStart = true
+})
+
+onUnmounted(async () => {
+  if (!isStart)
+    return
+  await stopPickServices({})
+  isStart = false
+})
+
+onBeforeUnmount(() => {
+  useRunlogStore().clearLogs() // 清空日志
+  runningStore.closeDataTableListener()
+})
+</script>
+
+<template>
+  <div class="flex flex-col w-full h-full bg-[#ecedf4] dark:bg-[#141414]">
+    <Header>
+      <template #headControl>
+        <HeaderControl :user-info="false" />
+      </template>
+    </Header>
+    <router-view v-slot="{ Component }">
+      <keep-alive :include="['EditorPage']">
+        <component :is="Component" />
+      </keep-alive>
+    </router-view>
+  </div>
+</template>

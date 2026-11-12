@@ -1,0 +1,26 @@
+[project]
+name = "astronverse-ai"
+version = "1.0.0"
+description = "astronverse-ai."
+requires-python = ">=3.13"
+
+dependencies = [
+    "requests",
+    "dotenv",
+    "pypdf",
+    "python-docx",
+    "sseclient-py",
+    "astronverse-actionlib",
+    "astronverse-browser; sys_platform == 'win32'"
+]
+
+[tool.uv.sources]
+astronverse-browser = {path = "../../components/astronverse-browser", editable = true}
+astronverse-actionlib = {path = "../../shared/astronverse-actionlib", editable = true}
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/astronverse"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

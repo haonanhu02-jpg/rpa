@@ -1,0 +1,27 @@
+atomic:
+  ComputerUse.custom_action_screen:
+    icon: computer-use
+    path:
+    - /atomicTreeExtend/ai/cua
+  ComputerUse.extract_data:
+    icon: computer-use
+    path:
+    - /atomicTreeExtend/ai/cua
+  ComputerUse.fill_form:
+    icon: computer-use
+    path:
+    - /atomicTreeExtend/ai/cua
+  ComputerUse.process_captcha:
+    icon: computer-use
+    path:
+    - /atomicTreeExtend/ai/cua
+  ComputerUse.run:
+    icon: computer-use
+    inputList:
+    - key: instruction
+    - key: max_steps
+    - key: temperature
+    outputList:
+    - key: computer_use_res
+    path:
+    - /atomicTreeExtend/ai/cua

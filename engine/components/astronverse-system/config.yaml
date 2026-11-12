@@ -1,0 +1,149 @@
+atomic:
+  System.copy_clip:
+    icon: copy-to-clipboard
+    path:
+    - /atomicTree/os/os.clipboard
+  System.clear_clip:
+    icon: clear-clipboard
+    path:
+    - /atomicTree/os/os.clipboard
+  System.paste_clip:
+    icon: get-clipboard
+    path:
+    - /atomicTree/os/os.clipboard
+  System.compress:
+    icon: compress
+    path:
+    - /atomicTree/os/os.zip
+  System.uncompress:
+    icon: decompress
+    path:
+    - /atomicTree/os/os.zip
+  File.file_exist:
+    icon: check-file-exists
+    path:
+    - /atomicTree/code/if
+    - /atomicTree/os/os.file
+  File.file_create:
+    icon: create-new-file
+    path:
+    - /atomicTree/os/os.file
+  File.file_delete:
+    icon: delete-file
+    path:
+    - /atomicTree/os/os.file
+  File.file_copy:
+    icon: copy-file
+    path:
+    - /atomicTree/os/os.file
+  File.file_write:
+    icon: write-file
+    path:
+    - /atomicTree/os/os.file
+  File.get_file_encoding_type:
+    icon: get-file-encoding
+    path:
+    - /atomicTree/os/os.file
+  File.file_read:
+    icon: read-file
+    path:
+    - /atomicTree/os/os.file
+  File.file_move:
+    icon: move-file
+    path:
+    - /atomicTree/os/os.file
+  File.file_rename:
+    icon: rename-file
+    path:
+    - /atomicTree/os/os.file
+  File.file_search:
+    icon: find-file
+    path:
+    - /atomicTree/os/os.file
+  File.file_wait_status:
+    icon: wait-file
+    path:
+    - /atomicTree/os/os.file
+  File.file_info:
+    icon: get-file-info
+    path:
+    - /atomicTree/os/os.file
+  File.get_file_list:
+    icon: get-file-list
+    path:
+    - /atomicTree/os/os.file
+  Folder.folder_exist:
+    icon: check-folder-exists
+    path:
+    - /atomicTree/code/if
+    - /atomicTree/os/os.path
+  Folder.folder_open:
+    icon: open-folder
+    path:
+    - /atomicTree/os/os.path
+  Folder.folder_create:
+    icon: create-folder
+    path:
+    - /atomicTree/os/os.path
+  Folder.folder_delete:
+    icon: delete-folder-ftp
+    path:
+    - /atomicTree/os/os.path
+  Folder.folder_copy:
+    icon: copy-folder
+    path:
+    - /atomicTree/os/os.path
+  Folder.folder_move:
+    icon: move-folder
+    path:
+    - /atomicTree/os/os.path
+  Folder.folder_rename:
+    icon: rename-folder
+    path:
+    - /atomicTree/os/os.path
+  Folder.folder_clear:
+    icon: clear-folder
+    path:
+    - /atomicTree/os/os.path
+  Folder.get_folder_list:
+    icon: get-folder-list
+    path:
+    - /atomicTree/os/os.path
+  System.run_command:
+    icon: run-or-open
+    path:
+    - /atomicTree/os/os.system
+  System.get_pid:
+    icon: get-process-pid
+    path:
+    - /atomicTree/os/os.system
+  System.terminate_process:
+    icon: terminate-process
+    path:
+    - /atomicTree/os/os.system
+  System.screen_shot:
+    icon: screen-screenshot
+    path:
+    - /atomicTree/os/os.screenshot
+  System.printer:
+    icon: printer-print
+    path:
+    - /atomicTree/os/os.printer
+  # System.screen_lock:
+  #   icon: screen-lock
+  #   inputList: []
+  #   outputList:
+  #   - key: screen_lock_result
+  #   path:
+  #   - /atomicTree/os/os.system
+  # System.screen_unlock:
+  #   icon: screen-unlock
+  #   inputList:
+  #   - key: user_name
+  #   - key: pwd_type
+  #   - key: password_text
+  #   - key: password_rsa
+  #   outputList:
+  #   - key: screen_unlock_result
+  #   path:
+  #   - /atomicTree/os/os.system

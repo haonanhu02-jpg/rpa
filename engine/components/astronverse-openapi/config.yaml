@@ -1,0 +1,25 @@
+atomic:
+  OpenApi.id_card:
+    icon: id-card-recognition
+    path:
+    - /atomicTreeExtend/ai/ocr
+  OpenApi.business_license:
+    icon: business-license-recognition
+    path:
+    - /atomicTreeExtend/ai/ocr
+  OpenApi.vat_invoice:
+    icon: vat-invoice-recognition
+    path:
+    - /atomicTreeExtend/ai/ocr
+  OpenApi.train_ticket:
+    icon: train-ticket-recognition
+    path:
+    - /atomicTreeExtend/ai/ocr
+  OpenApi.taxi_ticket:
+    icon: taxi-invoice-recognition
+    path:
+    - /atomicTreeExtend/ai/ocr
+  OpenApi.common_ocr:
+    icon: general-text-recognition
+    path:
+    - /atomicTreeExtend/ai/ocr

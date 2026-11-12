@@ -1,0 +1,25 @@
+atomic:
+  WinEle.click_element:
+    icon: click-element-win
+    path:
+    - /atomicTree/desktop
+  WinEle.screenshot_element:
+    icon: element-screenshot-win
+    path:
+    - /atomicTree/desktop
+  WinEle.hover_element:
+    icon: mouse-hover-element-win
+    path:
+    - /atomicTree/desktop
+  WinEle.input_text_element:
+    icon: fill-input-win
+    path:
+    - /atomicTree/desktop
+  WinEle.get_element_text:
+    icon: get-element-text-win
+    path:
+    - /atomicTree/desktop
+  WinEle.similar:
+    icon: get-similar-elements-win
+    path:
+    - /atomicTree/desktop

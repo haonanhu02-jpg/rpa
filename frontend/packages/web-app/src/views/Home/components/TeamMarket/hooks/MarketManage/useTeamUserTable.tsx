@@ -1,0 +1,395 @@
+import { Button, message } from 'ant-design-vue'
+import { useTranslation } from 'i18next-vue'
+import { storeToRefs } from 'pinia'
+import { getCurrentInstance, h, inject, reactive, ref, watch } from 'vue'
+
+import { dissolveTeamMarket, inviteMarketUser, leaveTeamMarket, marketUserList, removeUserRole, setUserRole } from '@/api/market'
+import GlobalModal from '@/components/GlobalModal/index.ts'
+import { TEAMMARKETS } from '@/constants/menu'
+import { useRoutePush } from '@/hooks/useCommonRoute'
+import { clipboardManager } from '@/platform'
+import { useMarketStore } from '@/stores/useMarketStore'
+import type { Fun } from '@/types/common'
+import type { TableOption } from '@/types/normalTable'
+import { MARKET_TYPE_PUBLIC, MARKET_USER_ADMIN, MARKET_USER_OWNER, USER_TYPES } from '@/views/Home/components/TeamMarket/config/market'
+import FireTeam from '@/views/Home/components/TeamMarket/MarketManage/FireTeam.vue'
+import GiveOwner from '@/views/Home/components/TeamMarket/MarketManage/GiveOwner.vue'
+import InviteUser from '@/views/Home/components/TeamMarket/MarketManage/InviteUser.vue'
+import RoleDropdown from '@/views/Home/components/TeamMarket/MarketManage/RoleDropdown.vue'
+
+const INIT_SCROLLY = window.innerHeight - 480
+
+export function useTeamUserTable() {
+  const appContext = getCurrentInstance()?.appContext
+  const { setOnlyUser } = inject('isOnlyUser') as { setOnlyUser: Fun }
+  const homeTableRef = ref(null)
+  const marketStore = useMarketStore()
+  const { activeMarket } = storeToRefs(marketStore)
+  const { t } = useTranslation()
+
+  const getUserList = async (params) => {
+    const data = await marketUserList({
+      marketId: activeMarket.value.marketId,
+      ...params,
+    })
+    setOnlyUser(data.records.length === 1)
+    return data
+  }
+
+  const removeUser = ({ creatorId }) => {
+    GlobalModal.confirm({
+      parentContext: appContext,
+      title: t('market.removeUserConfirm'),
+      okType: 'danger',
+      onOk: () => {
+        removeUserRole({ creatorId, marketId: activeMarket.value.marketId }).then((res) => {
+          const { data } = res
+          if (data) {
+            message.success(t('market.removeUserSuccess'))
+            refreshTableData()
+          }
+          else {
+            message.error(t('market.removeUserFail'))
+          }
+        })
+      },
+      onCancel() {
+        console.log('Cancel')
+      },
+      centered: true,
+      keyboard: false,
+    })
+  }
+
+  const changeUserType = (itemData, userType) => {
+    const { creatorId } = itemData
+    const user = t(USER_TYPES.find(item => item.key === userType)?.name || '')
+    GlobalModal.confirm({
+      parentContext: appContext,
+      title: t('market.setUserRoleConfirm', { role: user }),
+      onOk: () => {
+        setUserRole({
+          userType,
+          marketId: activeMarket.value.marketId,
+          creatorId,
+        }).then(({ data }) => {
+          if (data) {
+            message.success(t('market.setUserRoleSuccess'))
+            refreshTableData()
+          }
+        })
+      },
+      onCancel() {
+        console.log('Cancel')
+      },
+      centered: true,
+      keyboard: false,
+    })
+  }
+
+  // 邀请用户
+  const inviteUser = () => {
+    const marketId = activeMarket.value?.marketId
+    if (!marketId) {
+      message.error(t('common.operationFail'))
+      return
+    }
+
+    const inviteType = ref('link') // phone 组织架构 link 邀请链接
+    const inviteUsers = ref([])
+    const inviteLink = ref('')
+    let modalRef
+
+    const getErrorMessage = (error) => {
+      return error?.response?.data?.message || error?.response?.data?.msg || error?.message || error?.msg || t('market.inviteMemberFail')
+    }
+
+    const updateModalState = () => {
+      if (!modalRef)
+        return
+
+      const isLinkMode = inviteType.value === 'link'
+      modalRef.update({
+        okText: isLinkMode ? t('market.copyLink') : t('common.confirm'),
+        okButtonProps: {
+          loading: false,
+          disabled: isLinkMode ? !inviteLink.value : inviteUsers.value.length <= 0,
+        },
+      })
+    }
+
+    try {
+      modalRef = GlobalModal.confirm({
+        parentContext: appContext,
+        title: t('market.inviteMember'),
+        class: 'invite-user-modal',
+        icon: null,
+        width: 540,
+        content: h(InviteUser, {
+          marketId,
+          onInviteTypeChange: (type: string) => {
+            inviteType.value = type
+            updateModalState()
+          },
+          onChange: (values) => {
+            inviteUsers.value = values
+            updateModalState()
+          },
+          onLinkChange: (link: string) => {
+            inviteLink.value = link
+            updateModalState()
+          },
+        }),
+        okText: t('common.confirm'),
+        okButtonProps: { loading: false, disabled: true },
+        onOk: async () => {
+          if (inviteType.value === 'link') {
+            clipboardManager.writeClipboardText(inviteLink.value)
+            message.success(t('common.copySuccess'))
+            return true
+          }
+          if (inviteUsers.value.length <= 0) {
+            const error = t('market.noInviteMember')
+            message.warn(error)
+            return Promise.reject(new Error(error))
+          }
+
+          try {
+            const res = await inviteMarketUser({ marketId, userInfoList: inviteUsers.value })
+            if (res.data) {
+              message.success(t('market.inviteMemberSuccess'))
+              return true
+            }
+
+            message.error(t('market.inviteMemberFail'))
+            return Promise.reject(new Error(t('market.inviteMemberFail')))
+          }
+          catch (error) {
+            console.error('[market-user] invite failed:', error)
+            message.error(getErrorMessage(error))
+            return Promise.reject(error)
+          }
+        },
+        onCancel() {
+          console.log('Cancel')
+        },
+        centered: true,
+        keyboard: false,
+      })
+      updateModalState()
+    }
+    catch (e) {
+      console.error(e)
+      message.error(e instanceof Error ? e.message : t('common.operationFail'))
+    }
+  }
+
+  // 离开
+  const leaveTeam = () => {
+    GlobalModal.confirm({
+      parentContext: appContext,
+      title: t('market.leaveTeam'),
+      content: t('market.leaveTeamConfirm', { marketName: activeMarket.value.marketName }),
+      onOk: () => {
+        leaveTeamMarket({ newOwner: '', marketId: activeMarket.value.marketId })
+          .then(async (res) => {
+            if (res.data) {
+              message.success(t('common.operationSuccess'))
+              await marketStore.refreshTeamList()
+              await useRoutePush({ name: TEAMMARKETS })
+              homeTableRef.value.value.localOption.params.marketId = activeMarket.value.marketId
+            }
+          })
+          .catch((e) => {
+            if (e.message.includes('刷新页面')) {
+              marketStore.refreshTeamList(activeMarket.value.marketId, true)
+            }
+          })
+      },
+      centered: true,
+      keyboard: false,
+    })
+  }
+
+  // 移交所有权
+  const giveOwner = () => {
+    const newManager = ref('')
+    GlobalModal.confirm({
+      parentContext: appContext,
+      title: t('market.transferOwnership'),
+      content: (
+        <GiveOwner
+          marketId={activeMarket.value.marketId}
+          onChange={(value) => {
+            console.log(newManager)
+            newManager.value = value
+          }}
+        />
+      ),
+      onOk: () => {
+        if (!newManager.value) {
+          message.error(t('market.selectTransferUser'))
+          return
+        }
+        leaveTeamMarket({ newOwner: newManager.value, marketId: activeMarket.value.marketId })
+          .then(async (res) => {
+            if (res.data) {
+              message.success(t('common.operationSuccess'))
+              await marketStore.refreshTeamList()
+              await useRoutePush({ name: TEAMMARKETS })
+              homeTableRef.value.value.localOption.params.marketId = activeMarket.value.marketId
+            }
+          })
+          .catch((e) => {
+            if (e.message.includes('刷新页面')) {
+              marketStore.refreshTeamList(activeMarket.value.marketId, true)
+            }
+          })
+      },
+      centered: true,
+      keyboard: false,
+    })
+  }
+
+  // 解散团队
+  const fireTeam = () => {
+    const teamName = ref('')
+    GlobalModal.confirm({
+      parentContext: appContext,
+      title: t('market.dissolveTeam'),
+      content: <FireTeam marketName={activeMarket.value.marketName} onChange={value => teamName.value = value} />,
+      onOk: () => {
+        if (!teamName.value) {
+          message.error(t('market.enterDissolveTeamName'))
+          return
+        }
+        dissolveTeamMarket({ marketName: teamName.value, marketId: activeMarket.value.marketId })
+          .then(async (res) => {
+            if (res.data) {
+              message.success(t('common.operationSuccess'))
+              await marketStore.refreshTeamList()
+              await useRoutePush({ name: TEAMMARKETS })
+              homeTableRef.value.value.localOption.params.marketId = activeMarket.value.marketId
+            }
+          })
+      },
+      centered: true,
+      keyboard: false,
+    })
+  }
+
+  const tableOption = reactive<TableOption>({
+    refresh: false, // 控制表格数据刷新
+    getData: getUserList,
+    formList: [
+      {
+        componentType: 'input',
+        bind: 'userName',
+        placeholder: 'common.enterUserName',
+      },
+      {
+        componentType: 'input',
+        bind: 'realName',
+        placeholder: 'common.enterRealName',
+      },
+    ],
+    buttonList: [
+      {
+        label: 'market.inviteMember',
+        action: 'design_cloud_pj_create',
+        clickFn: () => inviteUser(),
+        type: 'primary',
+        hidden: ![MARKET_USER_OWNER, MARKET_USER_ADMIN].includes(activeMarket.value.userType),
+      },
+    ],
+    tableProps: {
+      columns: [
+        {
+          title: 'common.userName',
+          dataIndex: 'userName',
+          key: 'userName',
+          ellipsis: true,
+        },
+        {
+          title: 'common.realName',
+          dataIndex: 'realName',
+          key: 'realName',
+          ellipsis: true,
+        },
+        {
+          title: 'common.email',
+          dataIndex: 'email',
+          key: 'email',
+          ellipsis: true,
+        },
+        {
+          title: 'common.phone',
+          dataIndex: 'phone',
+          key: 'phone',
+          ellipsis: true,
+        },
+        {
+          title: 'market.joinTime',
+          dataIndex: 'createTime',
+          key: 'createTime',
+          ellipsis: true,
+          sorter: true,
+        },
+        {
+          title: 'operate',
+          dataIndex: 'oper',
+          key: 'oper',
+          width: 150,
+          customRender: ({ record }) => {
+            return (
+              <div class="custom-box">
+                <RoleDropdown userType={record.userType} onChange={userType => changeUserType(record, userType)} />
+                <Button
+                  type="link"
+                  size="small"
+                  disabled={record.userType === MARKET_USER_OWNER || (activeMarket.value.marketType === MARKET_TYPE_PUBLIC && record.userType === MARKET_USER_ADMIN)}
+                  onClick={() => removeUser(record)}
+                >
+                  {t('market.removeUser')}
+                </Button>
+              </div>
+            )
+          },
+        },
+      ],
+      rowKey: 'id',
+      scroll: { y: INIT_SCROLLY },
+    },
+    params: {
+      userName: '',
+      realName: '',
+    },
+  })
+
+  const refreshTableData = () => {
+    homeTableRef.value?.fetchTableData()
+  }
+
+  watch(() => activeMarket.value?.marketId, (newVal) => {
+    if (newVal) {
+      refreshTableData()
+    }
+  }, {
+    immediate: true,
+  })
+
+  watch(() => activeMarket.value?.userType, (newVal) => {
+    if (newVal) {
+      refreshTableData()
+    }
+  })
+
+  return {
+    giveOwner,
+    leaveTeam,
+    fireTeam,
+    homeTableRef,
+    tableOption,
+    refreshTableData,
+  }
+}

@@ -1,0 +1,176 @@
+atomic:
+  BrowserSoftware.browser_open:
+    icon: open-browser
+    path:
+    - /atomicTree/web
+  BrowserSoftware.get_current_obj:
+    icon: get-open-browser-objects
+    path:
+    - /atomicTree/web
+  BrowserElement.wait_element:
+    icon: wait-element-web
+    path:
+    - /atomicTree/web
+  BrowserElement.element_exist:
+    icon: wait-element-web
+    path:
+    - /atomicTree/web
+  BrowserElement.click:
+    icon: click-element-web
+    path:
+    - /atomicTree/web
+  BrowserElement.input:
+    icon: fill-input-web
+    path:
+    - /atomicTree/web
+  BrowserElement.hover_over:
+    icon: mouse-hover-element-web
+    path:
+    - /atomicTree/web
+  BrowserElement.screenshot:
+    icon: pick-element-screenshot-web
+    path:
+    - /atomicTree/web
+  BrowserElement.position_screenshot:
+    icon: element-position-screenshot-web
+    path:
+    - /atomicTree/web
+  BrowserElement.scroll:
+    icon: mouse-scroll-webpage
+    path:
+    - /atomicTree/web/web.page
+  BrowserElement.scroll_into_view:
+    icon: element-to-visible-web
+    path:
+    - /atomicTree/web
+  BrowserElement.similar:
+    icon: get-similar-elements-web
+    path:
+    - /atomicTree/web
+  BrowserElement.loop_similar:
+    icon: loop-similar-elements-web
+    path:
+    - /atomicTree/code/for
+    - /atomicTree/web
+    sort: 
+    - /atomicTree/code/for/100
+  BrowserElement.element_text:
+    icon: get-element-text-web
+    path:
+    - /atomicTree/web
+  BrowserElement.slider_hover:
+    icon: pick-slider-drag-web
+    path:
+    - /atomicTree/web
+  BrowserElement.get_select:
+    icon: get-dropdown-web
+    path:
+    - /atomicTree/web
+  BrowserElement.get_checked:
+    icon: get-checkbox-web
+    path:
+    - /atomicTree/web
+  BrowserElement.set_select:
+    icon: operate-dropdown-web
+    path:
+    - /atomicTree/web
+  BrowserElement.set_checked:
+    icon: operate-checkbox-web
+    path:
+    - /atomicTree/web
+  BrowserElement.element_operation:
+    icon: element-operation-web
+    path:
+    - /atomicTree/web
+  BrowserElement.get_table:
+    icon: get-table-data-web
+    path:
+    - /atomicTree/web
+  BrowserElement.data_batch:
+    icon: data-scraping-web
+    path:
+    - /atomicTree/web
+  BrowserElement.create_element:
+    icon: get-element-object-web
+    path:
+    - /atomicTree/web
+  BrowserElement.get_relative_element:
+    icon: get-related-elements-web
+    path:
+    - /atomicTree/web
+  BrowserScript.js_run:
+    icon: js-script
+    path:
+    - /atomicTree/script
+  BrowserSoftware.browser_close:
+    icon: close-browser
+    path:
+    - /atomicTree/web
+  BrowserSoftware.set_cookies:
+    icon: set-cookie
+    path:
+    - /atomicTree/web/web.cookie
+  BrowserSoftware.get_cookies:
+    icon: get-cookie
+    path:
+    - /atomicTree/web/web.cookie
+  BrowserSoftware.empty_cookies:
+    icon: clear-cookie
+    path:
+    - /atomicTree/web/web.cookie
+  BrowserSoftware.web_open:
+    icon: open-new-webpage
+    path:
+    - /atomicTree/web/web.page
+  BrowserSoftware.web_switch:
+    icon: switch-existing-tab
+    path:
+    - /atomicTree/web/web.page
+  BrowserSoftware.wait_web_load:
+    icon: wait-page-load
+    path:
+    - /atomicTree/web/web.page
+  BrowserSoftware.stop_web_load:
+    icon: stop-loading-page
+    path:
+    - /atomicTree/web/web.page
+  BrowserSoftware.web_refresh:
+    icon: refresh-current-page
+    path:
+    - /atomicTree/web/web.page
+  BrowserSoftware.web_close:
+    icon: close-webpage
+    path:
+    - /atomicTree/web/web.page
+  BrowserSoftware.screenshot:
+    icon: webpage-screenshot
+    path:
+    - /atomicTree/web/web.page
+  BrowserSoftware.browser_forward:
+    icon: webpage-forward
+    path:
+    - /atomicTree/web/web.page
+  BrowserSoftware.browser_back:
+    icon: webpage-backward
+    path:
+    - /atomicTree/web/web.page
+  BrowserSoftware.get_current_url:
+    icon: get-webpage-url
+    path:
+    - /atomicTree/web/web.page
+  BrowserSoftware.get_current_title:
+    icon: get-webpage-title
+    path:
+    - /atomicTree/web/web.page
+  BrowserSoftware.get_current_tab_id:
+    icon: get-current-tab-id
+    path:
+    - /atomicTree/web/web.page
+  BrowserSoftware.download_web_file:
+    icon: file-download-web
+    path:
+    - /atomicTree/web/web.file
+  BrowserSoftware.upload_web_file:
+    icon: file-upload-web
+    path:
+    - /atomicTree/web/web.file

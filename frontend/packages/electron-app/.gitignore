@@ -1,0 +1,12 @@
+node_modules
+dist
+out
+data
+resources
+.DS_Store
+*.log*
+
+.env
+
+/resources/*.7z
+/extensions/*

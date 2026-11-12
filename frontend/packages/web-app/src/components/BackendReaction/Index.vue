@@ -1,0 +1,289 @@
+<script setup lang="ts">
+/**
+ *  全局主进程事件监听
+ *  1、监听主进程事件，处理渲染进程需要执行的逻辑
+ *  2、注意此文件中的代码以及导入的依赖尽量要干净，避免引入不必要的内容
+ *  3、尽量使用BUS进行触发，减少导入
+ */
+import { message } from 'ant-design-vue'
+import { h } from 'vue'
+import { useRoute } from 'vue-router'
+
+import i18next from '@/plugins/i18next'
+
+import { base64ToString } from '@/utils/common'
+import { baseUrl } from '@/utils/env'
+import BUS from '@/utils/eventBus'
+import $loading from '@/utils/globalLoading'
+
+import { endSchedulingMode, stopSchedulingTask } from '@/api/engine'
+import http from '@/api/http'
+import { taskCancel, taskNotify } from '@/api/task'
+import GlobalModal from '@/components/GlobalModal/index.ts'
+import { WINDOW_NAME } from '@/constants'
+import { EDITORPAGE, SMARTCOMPONENT } from '@/constants/menu'
+import { utilsManager, windowManager } from '@/platform'
+import type { CreateWindowOptions, WindowPosition } from '@/platform'
+import { useAppConfigStore } from '@/stores/useAppConfig'
+import { useAppModeStore } from '@/stores/useAppModeStore'
+import { usePermissionStore } from '@/stores/usePermissionStore'
+import { useRunningStore } from '@/stores/useRunningStore'
+import useUserSettingStore from '@/stores/useUserSetting.ts'
+
+export interface W2WType {
+  from: string // 来源窗口
+  target: string // 目标窗口
+  type: string // 类型
+  data?: any // 数据
+}
+
+const permissionStore = usePermissionStore()
+const userSettingStore = useUserSettingStore()
+const runningStore = useRunningStore()
+const appConfigStore = useAppConfigStore()
+const appModeStore = useAppModeStore()
+
+interface SchedulerEventType<T = any> {
+  type: string
+  msg: T
+}
+
+type SubWindowSchedulerEventType = SchedulerEventType<{
+  action: 'open' | 'close'
+  name: string
+  params?: Record<string, string>
+  height: string
+  pos: string
+  top: string
+  width: string
+}>
+
+const route = useRoute()
+
+// 主进程与渲染进程通信
+utilsManager.listenEvent('scheduler-event', (eventMsg) => {
+  const msgObject = JSON.parse(base64ToString(eventMsg))
+  const { type, msg } = msgObject
+  console.log('主进程消息: ', msgObject)
+  switch (type) {
+    case 'tip': {
+      const msgContent = typeof msg === 'string' ? msg : msg.msg
+      if (msg.type === 'error') {
+        message.error(msgContent)
+        $loading.close(true)
+      }
+      else {
+        message.info(msgContent)
+      }
+      break
+    }
+    case 'crontab': {
+      openTaskCountDown(msg)
+      break
+    }
+    case 'executor_end': {
+      runningStore.closeCreatedWindows()
+      if (appModeStore.appMode === 'normal') {
+        executorHandle()
+        runningStore.reset()
+      }
+      break
+    }
+    case 'log_report': {
+      logReportHandle(msg)
+      break
+    }
+    case 'edit_show_hide': {
+      if (appModeStore.appMode === 'normal') {
+        if (msg.type === 'hide') {
+          windowManager.minimizeWindow()
+        }
+        else {
+          windowManager.showWindow()
+          windowManager.maximizeWindow(true)
+        }
+      }
+      break
+    }
+    case 'alert': {
+      alertHandle(msg)
+      break
+    }
+    case 'terminal_status': {
+      // 监听调度模式时，终端状态-运行中、空闲，通知主进程切换托盘菜单
+      utilsManager.invoke('tray_change', { mode: 'scheduling', status: msg.type })
+      break
+    }
+    case 'sub_window': {
+      subWindowHandle(msg)
+      break
+    }
+    default:
+      break
+  }
+})
+
+// 渲染进程窗口之间通信
+utilsManager.listenEvent('w2w', (eventMsg: W2WType) => {
+  console.log('w2w: ', eventMsg)
+  const { type, from, data } = eventMsg
+
+  if (from === WINDOW_NAME.BATCH) {
+    if (type === 'save' && data.noEmit !== 'true') {
+      BUS.$emit('batch-done', { data: data.elementId, value: data.name })
+    }
+    BUS.$emit('batch-close')
+    BUS.$emit('get-elements')
+
+    windowManager.showWindow()
+  }
+  else if (from === WINDOW_NAME.RECORD) {
+    if (type === 'close') {
+      windowManager.closeWindow(WINDOW_NAME.RECORD_MENU)
+      windowManager.closeWindow(WINDOW_NAME.RECORD)
+      windowManager.showWindow()
+    }
+    else if (type === 'save') {
+      BUS.$emit('record-save', data)
+    }
+  }
+  else if (from === WINDOW_NAME.USERFORM) {
+    if (type === 'userFormSave') {
+      runningStore.sendReplyMessage(data)
+    }
+  }
+  else if (from === WINDOW_NAME.MULTICHAT) {
+    if (type === 'chatContentSave') {
+      runningStore.sendReplyMessage(data)
+    }
+  }
+})
+
+utilsManager.listenEvent('exit_scheduling_mode', () => {
+  console.log('exit_scheduling_mode')
+  appModeStore.setAppMode('normal') // 设置为正常模式
+  endSchedulingMode()
+})
+
+utilsManager.listenEvent('update-downloaded', () => {
+  appConfigStore.onUpdaterDownloaded()
+})
+
+// 调度模式，停止当前任务
+utilsManager.listenEvent('stop_task', () => {
+  console.log('stop_task')
+  stopSchedulingTask()
+  utilsManager.invoke('tray_change', { mode: 'scheduling', status: 'idle' }) // 改变托盘菜单
+})
+
+function openTaskCountDown(countDownInfo) {
+  const { task_name, task_id, count_down } = countDownInfo
+  let timer = null
+  let count = Number(count_down)
+  const highlighStyle = 'color: #4E68F6;font-weight: bold;font-size: 14px;'
+  function getContent(count: number) {
+    return h('div', [
+      h('span', { style: highlighStyle }, `${count}s `),
+      h('span', i18next.t('backendReaction.taskWillRunAfter')),
+      h('span', { style: highlighStyle }, task_name),
+    ])
+  }
+  const modal = GlobalModal.info({
+    title: i18next.t('backendReaction.taskRunTipTitle'),
+    content: () => getContent(count),
+    closable: false,
+    maskClosable: false,
+    okText: i18next.t('backendReaction.stopThisRun'),
+    onOk: () => {
+      taskCancel({ task_id }).then(() => {
+        message.success(i18next.t('backendReaction.taskStopped'))
+        modal.destroy()
+        timer && clearInterval(timer)
+      })
+    },
+    zIndex: 99999,
+    centered: true,
+    keyboard: false,
+  })
+  timer = setInterval(() => {
+    count--
+    modal.update({
+      content: () => getContent(count),
+    })
+    if (count === 0) {
+      modal.destroy()
+      clearInterval(timer)
+    }
+  }, 1000)
+}
+
+function executorHandle() {
+  windowManager.showWindow()
+  windowManager.maximizeWindow(true)
+}
+
+// 打开/关闭子窗口
+async function subWindowHandle(msg: SubWindowSchedulerEventType['msg']) {
+  if (msg.action === 'open') {
+    // 构建 URL，如果有 params 则添加查询参数
+    const options: CreateWindowOptions = {
+      url: `${baseUrl}/${msg.name}.html?${new URLSearchParams(msg.params).toString()}`,
+      title: 'iflyrpa-window',
+      label: msg.name,
+      alwaysOnTop: msg.top === 'true',
+      position: msg.pos as WindowPosition,
+      width: Number(msg.width),
+      height: Number(msg.height),
+      resizable: false,
+      decorations: false,
+      fileDropEnabled: false,
+      transparent: true,
+      skipTaskbar: true,
+    }
+
+    await windowManager.createWindow(options)
+  }
+  else if (msg.action === 'close') {
+    windowManager.closeWindow(WINDOW_NAME.LOGWIN)
+  }
+}
+
+function logReportHandle(msg) {
+  const { log_path, data_table_path } = msg
+  // 设置中心的详细日志是否启用，如果启用，则打开日志弹窗
+  if (!userSettingStore.openLogModalAfterRun)
+    return
+
+  if (![EDITORPAGE, SMARTCOMPONENT].includes(route.name as string) && log_path) {
+    BUS.$emit('open-log-modal', log_path, data_table_path)
+  }
+}
+
+function alertHandle(msg) {
+  if (msg.type === 'normal') {
+    GlobalModal.warning({
+      title: i18next.t('prompt'),
+      content: msg.msg,
+      centered: true,
+      okText: i18next.t('common.gotIt'),
+      zIndex: 99999,
+    })
+  }
+}
+
+window.onload = () => {
+  taskNotify({ event: 'login' })
+  http.init()
+  http.resolveReadyPromise()
+  permissionStore.initPermission()
+
+  utilsManager.invoke('main_window_onload').catch(() => {
+    // 在浏览器中，默认引擎已经启动，可以发送 http 请求了
+    http.resolveReadyPromise()
+  })
+}
+</script>
+
+<template>
+  <div style="display: none" />
+</template>

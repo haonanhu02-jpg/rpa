@@ -1,0 +1,52 @@
+import platform
+import sys
+from typing import Any
+
+from astronverse.actionlib.atomic import atomicMg
+from astronverse.database import DatabaseType
+from astronverse.database.core import IDatabaseCore
+from astronverse.database.error import *
+
+if sys.platform == "win32":
+    from astronverse.database.core_win import DatabaseCore
+elif platform.system() == "Linux":
+    from astronverse.database.core_unix import DatabaseCore
+else:
+    raise NotImplementedError("Your platform (%s) is not supported by (%s)." % (platform.system(), "clipboard"))
+
+
+DatabaseCore: IDatabaseCore = DatabaseCore()
+
+
+class Database:
+    @staticmethod
+    @atomicMg.atomic(
+        "Database",
+        inputList=[
+            atomicMg.param("connect_info", types="Dict"),
+        ],
+        outputList=[atomicMg.param("connect_db_obj", types="Any")],
+    )
+    def connect_database(connect_info: dict, db_type: DatabaseType = DatabaseType.MySQL):
+        connect_db_obj = DatabaseCore.connect(connect_info, db_type)
+        return connect_db_obj
+
+    @staticmethod
+    @atomicMg.atomic("Database", inputList=[], outputList=[])
+    def disconnect_database(database_obj: Any):
+        DatabaseCore.disconnect(database_obj)
+
+    @staticmethod
+    @atomicMg.atomic("Database", inputList=[], outputList=[])
+    def execute_sql(database_obj: Any, sql: str):
+        DatabaseCore.execute(database_obj, sql)
+
+    @staticmethod
+    @atomicMg.atomic(
+        "Database",
+        inputList=[],
+        outputList=[atomicMg.param("query_db_result", types="Any")],
+    )
+    def query_sql(database_obj: Any, sql: str):
+        query_db_result = DatabaseCore.query(database_obj, sql)
+        return query_db_result

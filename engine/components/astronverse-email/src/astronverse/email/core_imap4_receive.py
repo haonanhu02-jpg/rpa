@@ -1,0 +1,313 @@
+"""
+基于 IMAP4 协议的邮件接收与解析工具类。
+"""
+
+import base64
+import email
+import email.header
+import email.utils
+import imaplib
+import re
+from datetime import datetime
+from imaplib import IMAP4_SSL
+
+from astronverse.baseline.logger.logger import logger
+
+
+def encode_imap_utf7(folder_name: str) -> bytes:
+    """
+    将邮箱文件夹名编码为 IMAP 修改版 UTF-7 格式（RFC 3501）。
+    - 普通可打印 ASCII（除 & 外）原样保留
+    - & 编码为 &-
+    - 非 ASCII 字符（如中文）编码为 &<base64(UTF-16BE)>-，其中 base64 中的 / 替换为 ,
+    """
+    res = bytearray()
+    buf = []
+
+    def flush_buf():
+        if buf:
+            encoded = base64.b64encode("".join(buf).encode("utf-16-be")).decode("ascii")
+            encoded = encoded.rstrip("=").replace("/", ",")
+            res.extend(("&" + encoded + "-").encode("ascii"))
+            buf.clear()
+
+    for char in folder_name:
+        if char == "&":
+            flush_buf()
+            res.extend(b"&-")
+        elif 0x20 <= ord(char) <= 0x7E:
+            flush_buf()
+            res.append(ord(char))
+        else:
+            buf.append(char)
+
+    flush_buf()
+    return bytes(res)
+
+
+def decode_imap_utf7(encoded: str) -> str:
+    """
+    将 IMAP 修改版 UTF-7 字符串解码为 Unicode（RFC 3501），方便日志可读。
+    """
+    import re as _re
+
+    result = []
+    for part in _re.split(r"(&[^-]*-)", encoded):
+        if part.startswith("&") and part.endswith("-"):
+            inner = part[1:-1]
+            if inner == "":
+                result.append("&")
+            else:
+                b64 = inner.replace(",", "/")
+                # 补齐 base64 padding
+                b64 += "=" * (-len(b64) % 4)
+                try:
+                    result.append(base64.b64decode(b64).decode("utf-16-be"))
+                except Exception:
+                    result.append(part)
+        else:
+            result.append(part)
+    return "".join(result)
+
+
+def decode_folder_list(raw_list) -> list:
+    """将 showFolders 返回的原始字节列表解码为可读字符串列表"""
+    folders = []
+    for item in raw_list or []:
+        try:
+            text = item.decode("ascii") if isinstance(item, bytes) else str(item)
+            # 提取引号内的文件夹名，例如 () "/" "&XfJT0ZAB-"
+            match = re.search(r'"([^"]*)"\s*$', text) or re.search(r'"([^"]+)"[^"]*$', text)
+            if match:
+                raw_name = match.group(1)
+                decoded = decode_imap_utf7(raw_name)
+                folders.append(f"{decoded!r}  (raw: {raw_name})")
+            else:
+                folders.append(text)
+        except Exception as e:
+            folders.append(repr(item))
+    return folders
+
+
+def decode_data(b, added_encode=None):
+    """
+    字节解码
+    """
+
+    def _decode(bs, encoding):
+        """
+        内部解码函数
+        """
+        try:
+            return str(bs, encoding=encoding)
+        except Exception as e:
+            return None
+
+    encodes = ["GB2312", "UTF-8", "GBK"]
+    if added_encode:
+        encodes = [added_encode] + encodes
+    for encoding in encodes:
+        str_data = _decode(b, encoding)
+        if str_data is not None:
+            return str_data
+    return None
+
+
+class EmailImap4Receive:
+    """
+    基于 IMAP4 协议的邮件接收与解析工具类。
+    提供登录、邮件检索、解析、标记已读等功能。
+    """
+
+    def __init__(self):
+        self.mail_handler: IMAP4_SSL | None = None
+
+    def login(self, server, port: int, user, password):
+        """登录邮箱服务器"""
+        self.mail_handler = imaplib.IMAP4_SSL(server, port)
+        self.mail_handler.login(user, password)
+        self.__build_header__(user)
+
+    def __build_header__(self, user):
+        """
+        构建网易客户端id
+        """
+        imaplib.Commands["ID"] = ("AUTH",)
+        args = (
+            "name",
+            user.split("@")[0],
+            "contact",
+            user,
+            "version",
+            "1.0.0",
+            "vendor",
+            "myclient",
+        )
+        self.mail_handler._simple_command("ID", '("' + '" "'.join(args) + '")')
+
+    def showFolders(self):
+        """
+        返回所有文件夹
+
+        """
+        return self.mail_handler.list()
+
+    def logout(self):
+        """Release the session without CLOSE, which may expunge deleted mail."""
+        if self.mail_handler is not None:
+            try:
+                self.mail_handler.logout()
+            finally:
+                self.mail_handler = None
+
+    def select(self, selector, readonly=False):
+        """
+        选择收件箱（如“INBOX”，如果不知道可以调用showFolders）。
+        若 selector 包含非 ASCII 字符（如中文），自动编码为 IMAP 修改版 UTF-7。
+        """
+        status, folder_data = self.showFolders()
+        logger.info(f"available folders:\n" + "\n".join(decode_folder_list(folder_data)))
+        if isinstance(selector, str):
+            encoded_selector = encode_imap_utf7(selector)
+            logger.info(f"selecting folder: {selector!r} -> encoded: {encoded_selector}")
+        else:
+            encoded_selector = selector
+        result = self.mail_handler.select(encoded_selector, readonly=readonly)
+        logger.info(f"select result: {result}")
+        return result
+
+    def search(self, charset="utf-8", *criteria):
+        """
+        查找邮件 搜索邮件(参照RFC文档http://tools.ietf.org/html/rfc3501#page-49)
+
+        :param charset:
+        :param criteria:
+            1. support `FROM`、`TO`、`BODY`、`SUBJECT` to filter by keyword
+            2. support `Unseen`、`All`、`Seen`、`(SINCE "01-Jan-2017")` to filter by mail's state
+        :return:
+        """
+        try:
+            return self.mail_handler.search(charset, *criteria)
+        except Exception:
+            self.select("INBOX")
+            return self.mail_handler.search(charset, *criteria)
+
+    def __get_email_format__(self, num):
+        """
+        以RFC822协议格式返回邮件详情的email对象
+
+        :param num:
+        :return: msg
+        """
+        data = self.mail_handler.fetch(num, "(BODY.PEEK[])")
+        if data[0] == "OK" and data[1] and data[1][0] and len(data[1][0]) > 1:
+            decoded = decode_data(data[1][0][1])
+            if decoded is not None:
+                return email.message_from_string(decoded)
+            else:
+                return "decode error"
+        else:
+            return "fetch error"
+
+    @staticmethod
+    def __parse_attachment__(message_part):
+        content_disposition = message_part.get("Content-Disposition", None)
+        if not content_disposition:
+            return None
+
+        dispositions = content_disposition.strip().split(";")
+        if not bool(content_disposition and dispositions[0].lower() == "attachment"):
+            return None
+
+        attachment = {}
+        file_data = message_part.get_payload(decode=True)
+        attachment["content_type"] = message_part.get_content_type()
+        attachment["size"] = len(file_data) if file_data else None
+        de_name = email.header.decode_header(message_part.get_filename())[0]
+        name = de_name[0]
+        if de_name[1] is not None:
+            name = de_name[0].decode(de_name[1])
+        attachment["name"] = name
+        attachment["data"] = file_data
+        return attachment
+
+    @staticmethod
+    def __get_sender_info__(msg):
+        """返回发送者的信息——元组（邮件称呼，邮件地址）"""
+        name = email.utils.parseaddr(msg["from"])[0]
+        de_name = email.header.decode_header(name)[0]
+        if de_name[1] is not None:
+            name = decode_data(de_name[0], de_name[1])
+        address = email.utils.parseaddr(msg["from"])[1]
+        return name, address
+
+    @staticmethod
+    def __get_receiver_info__(msg):
+        """返回接受者的信息——元组（邮件称呼，邮件地址）"""
+        name = email.utils.parseaddr(msg["to"])[0]
+        de_name = email.header.decode_header(name)[0]
+        if de_name[1] is not None:
+            name = decode_data(de_name[0], de_name[1])
+        address = email.utils.parseaddr(msg["to"])[1]
+        return name, address
+
+    @staticmethod
+    def __get_subject_content__(msg):
+        """返回邮件的主题（参数msg是email对象，可调用getEmailFormat获得）"""
+        try:
+            de_content = email.header.decode_header(msg["subject"])[0]
+        except Exception:
+            return msg["subject"]
+        if de_content[1] is not None:
+            return decode_data(de_content[0], de_content[1])
+        return de_content[0]
+
+    @staticmethod
+    def __get_email_time__(msg):
+        date_tuple = email.utils.parsedate_tz(msg["Date"])
+        if date_tuple:
+            local_date = datetime.fromtimestamp(email.utils.mktime_tz(date_tuple))
+            formatted_time = local_date.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            formatted_time = None
+        return formatted_time
+
+    def get_entire_mail_info(self, num):
+        """
+        返回邮件的解析后信息部分
+        返回列表包含（主题，纯文本正文部分，html的正文部分，发件人元组，收件人元组，附件列表）
+        """
+        msg = self.__get_email_format__(num)
+        attachments = []
+        body = None
+        html = None
+
+        for part in msg.walk():  # type: ignore
+            if part.get_content_type() == "text/plain":
+                if body is None:
+                    body = b""
+                payload = part.get_payload(decode=True)
+                if isinstance(payload, bytes):
+                    body += payload
+            elif part.get_content_type() == "text/html":
+                if html is None:
+                    html = b""
+                payload = part.get_payload(decode=True)
+                if isinstance(payload, bytes):
+                    html += payload
+            else:
+                attachment = self.__parse_attachment__(part)
+                attachments.append(attachment)
+        return {
+            "from": self.__get_sender_info__(msg),
+            "to": self.__get_receiver_info__(msg),
+            "subject": self.__get_subject_content__(msg),
+            "body": decode_data(body),
+            "html": decode_data(html),
+            "time": self.__get_email_time__(msg),
+            "attachments": attachments,
+        }
+
+    def mask_as_read(self, num):
+        """需要标注为已读"""
+        self.mail_handler.store(num, "+FLAGS", "\\Seen")

@@ -1,0 +1,94 @@
+from datetime import datetime
+from enum import Enum
+from typing import Any, Optional, Union
+
+from pydantic import BaseModel, Field
+
+from app.schemas.integration import CapabilityClass
+
+
+class WorkflowStatus(int, Enum):
+    ACTIVE = 1
+    INACTIVE = 0
+
+
+class ExecutionStatus(str, Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+    UNKNOWN = "UNKNOWN"
+    TIMEOUT = "TIMEOUT"
+
+
+class WorkflowBase(BaseModel):
+    """工作流基本数据模型"""
+
+    project_id: Union[str, int] = Field(..., description="项目ID")
+    name: str = Field("Default_Workflow", description="工作流名称", min_length=1, max_length=100)
+    english_name: Optional[str] = Field(None, description="工作流英文名称", max_length=100)
+    description: Optional[str] = Field(None, description="工作流描述", max_length=500)
+    version: int = Field(1, description="工作流版本号")
+    status: int = Field(0, description="工作流状态")
+    parameters: Optional[str] = Field(None, description="工作流参数(JSON格式)")
+    example_project_id: Optional[str] = Field(None, description="示例用户账号下的project_id，用于执行时映射")
+
+
+class WorkflowResponse(WorkflowBase):
+    """工作流响应模型"""
+
+    created_at: datetime = Field(..., description="创建时间")
+    updated_at: Optional[datetime] = Field(None, description="更新时间")
+
+    model_config = {"from_attributes": True}
+
+
+class WorkflowListResponse(BaseModel):
+    """工作流列表响应模型"""
+
+    data: list[WorkflowResponse] = Field(..., description="工作流列表")
+
+
+class ExecutionCreate(BaseModel):
+    """创建工作流执行记录请求模型"""
+
+    model_config = {"extra": "forbid"}
+
+    project_id: str = Field(..., description="项目ID")
+    params: Optional[dict[str, Any]] = Field(None, description="执行参数")
+    exec_position: str = Field("EXECUTOR", description="执行位置")
+    recording_config: Optional[str] = Field(None, description="录制配置")
+    version: Optional[int] = Field(None, description="工作流版本号")
+    idempotency_key: Optional[str] = Field(None, min_length=1, max_length=200)
+    execution_timeout: Optional[int] = Field(None, ge=1, le=86400, strict=True)
+    profile_revision: Optional[str] = Field(None, min_length=1, max_length=100)
+    capability_class: CapabilityClass | None = None
+
+    # 2026-01-12 新增手机号参数，用于星辰Agent的复制调用
+    phone_number: Optional[str] = Field(None, description="手机号")
+
+
+class ExecutionResponse(BaseModel):
+    """执行记录响应模型"""
+
+    id: str = Field(..., description="执行记录ID")
+    project_id: str = Field(..., description="项目ID")
+    status: str = Field(..., description="执行状态")
+    parameters: Optional[dict[str, Any]] = Field(None, description="执行参数")
+    result: Optional[dict[str, Any]] = Field(None, description="执行结果")
+    error: Optional[str] = Field(None, description="错误信息")
+    exec_position: str = Field(..., description="执行位置")
+    version: Optional[int] = Field(None, description="工作流版本号")
+    start_time: datetime = Field(..., description="开始时间")
+    end_time: Optional[datetime] = Field(None, description="结束时间")
+
+    model_config = {"from_attributes": True}
+
+
+class WorkflowCopyRequest(BaseModel):
+    """复制工作流请求模型"""
+
+    project_id: Union[str, int] = Field(..., description="项目ID")
+    version: int = Field(..., description="工作流版本号")
+    phone_number: str = Field(..., description="目标手机号码")

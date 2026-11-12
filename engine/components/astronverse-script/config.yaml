@@ -1,0 +1,15 @@
+atomic:
+  Script.process:
+    icon: run-sub-process
+    path:
+    - /atomicTree/process
+  Script.module:
+    icon: run-python-module
+    path:
+    - /atomicTree/process
+    - /atomicTree/script
+  Script.component:
+    icon: custom-component
+    path:
+    - /atomicTree/process
+    hidden: true

@@ -1,0 +1,646 @@
+# 🤖 Astron RPA Frequently Asked Questions (FAQ)
+
+> 💡 **Tip:** Items marked with 🆕 are new additions, and those marked with 🔄 are recent updates.
+
+## 📚 Table of Contents
+
+- [🔧 Installation & Deployment](#-installation--deployment)
+- [👥 Client Related](#-client-related)
+- [⚡ Performance & Loading](#-performance--loading)
+- [📖 Feature Usage](#-feature-usage)
+- [🐛 Troubleshooting](#-troubleshooting)
+- [📞 Get Help](#-get-help)
+
+---
+
+## 🔧 Installation & Deployment
+
+### Q: Can the open-source client run on Linux?
+
+**A:** ❌ **Not yet!** The open-source version of Astron RPA client currently only supports Windows systems.
+
+**Supported Systems:**
+- ✅ Windows 10/11
+
+### Q: 🆕 Is it normal for the server atlas container to exit automatically after starting?
+
+**A:** ✅ **Normal!** The Atlas container is used for database Schema migration and will automatically exit upon task completion. As long as the log shows "Schema is synced", it means success.
+
+### Q: 🆕 Agent server cannot connect to RPA service?
+
+**A:** Please check the `.env` file in the Agent deployment directory to ensure `RPA_URL` is set to the public HTTPS address of the RPA server (e.g., `https://rpa.example.com`).
+
+### Q: 🆕 Client installation stuck at the last step for a long time?
+
+**A:** 
+
+Please try:
+1. Uninstall the old version
+2. Manually delete the `data` folder in the installation directory
+3. Re-run the installation package
+
+### Q: Prompt "There is a problem with this Windows Installer package" during installation?
+
+**A:**
+This is usually because the system lacks necessary runtime components.
+**Solution:** Please download and install/update [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
+
+### Q: 🆕 404 NotFound occurs when starting the client after local build?
+
+**A:** 
+It is not recommended to build the client locally by yourself, as you may encounter configuration or environmental issues.
+It is recommended to download the official stable installation package (e.g., v1.1.2+) directly from the [Release page](https://github.com/iflytek/astron-rpa/releases).
+
+### Q: 🆕 Can RPA be deployed and run in an offline intranet environment? How to import images?
+
+**A:** ✅ **Yes!**
+In an offline environment, you need to export image packages using `docker save` in an environment with internet access, and import them using `docker load` in the intranet. After importing, please use `docker images` to check if the image Tags are complete. If there are dangling images without names, please use `docker tag` to re-tag them.
+
+### Q: 🆕 Installation of dependencies like `pywinhook` and `psycopg2` fails with errors when building the client locally (`build.bat`)?
+
+**A:**
+1. **C++ Build Environment**: Ensure Microsoft Visual C++ 14.0 or higher is installed (including MSVC v143 and Win10/11 SDK).
+2. **Permission Issue**: Please run the build script with Administrator privileges.
+3. **Optional Database Drivers**: Oracle, PostgreSQL, SQL Server and Access drivers are optional dependencies. Install only those required by your workflows; see the [driver requirements](#q-which-drivers-do-database-workflows-need).
+
+### Q: Which drivers do database workflows need?
+
+**A:** Install the driver in the Python environment that executes the workflow on the client.
+
+| Database | Python dependency | Component extra |
+| --- | --- | --- |
+| SQLite | Standard library; no separate installation | — |
+| MySQL | `pymysql`, included by default | — |
+| Oracle | `cx_Oracle` | `oracle` |
+| PostgreSQL | `psycopg2-binary` (import name: `psycopg2`) | `postgresql` |
+| SQL Server / Access | `pyodbc` | `sqlserver` / `access` |
+
+The extras are defined in [astronverse-database/pyproject.toml](engine/components/astronverse-database/pyproject.toml). Missing or unloadable drivers report the package to install. If it is already installed, check its support for the client's Python version and architecture, plus any required Oracle Client or ODBC libraries. Installing a package in a different Python environment does not make it available to the workflow.
+
+### Q: 🆕 Does the open-source version of RPA support front-end and back-end separate deployment for secondary development and debugging?
+
+**A:** ✅ **Yes!**
+The front-end and back-end separate mode is fully supported and recommended for development and debugging scenarios. You can independently run and debug front-end and back-end code. Please make sure to pull the latest code for configuration.
+
+### Q: 🆕 Can the client be installed on a cloud desktop / virtual machine?
+
+**A:** ✅ **Yes.** A large part of our own testing runs on cloud desktop environments (e.g. Tencent Cloud Desktop).
+
+Things to watch out for:
+- **OS build**: Windows 10 1809 or later is recommended. Older builds may hang at login or render the UI incorrectly.
+- **Works locally but not on the cloud host**, check in this order:
+  1. Confirm the cloud host meets the OS requirement above;
+  2. Collect client logs from `%APPDATA%\astron-rpa\logs` (or `data\logs` under the install directory);
+  3. Empty logs usually mean the process never started — report the OS build and the installation method in an issue or in the community group.
+
+### Q: 🆕 Manual client build fails with `Cannot compute electron version from installed node modules`?
+
+**A:** This error comes from the `electron-builder install-app-deps` step and means the Electron dependencies under `packages/electron-app` are incomplete. It is usually an environment problem rather than a code problem.
+
+**Checklist:**
+1. **Make sure pnpm is installed and on PATH** (most common cause): `pnpm --version` should print a version. If pnpm is installed but not on PATH, the build script exits immediately or fails midway.
+2. **Node.js >= 22 and pnpm >= 9** are required — see [`BUILD_GUIDE.md`](./BUILD_GUIDE.md).
+3. **Install dependencies before building**: make sure the frontend dependency installation step finished successfully.
+4. Building the client does **not** require Java or Docker — missing those does not affect the client build.
+
+> 💡 If double-clicking the build script makes the window flash and disappear, run `./build.bat -p xxx -s xxx` from a terminal in the project root so you can read the full error.
+
+---
+
+## 👥 Client Related
+
+### Q: Do I need to install a client?
+
+**A:** ✅ **Yes!** RPA currently doesn't have a web version and requires a client to run.
+
+### Q: 🆕 Is there any difference between the open-source version and the enterprise version of RPA?
+
+**A:** The open-source version of the RPA client is universal with the platform version, but you need to pay attention to configuring the corresponding server address.
+
+---
+
+### Q: 🆕 The official website says iFlyRPA has been upgraded to iFly Cowork and older versions will no longer be updated. Does this affect the open-source edition?
+
+**A:** No. The notice applies to the iFlyRPA **SaaS edition**: the SaaS edition has been upgraded to iFly Cowork, the previous SaaS edition will no longer receive feature updates, and login verification codes will be phased out. SaaS users should switch to account-and-password login or move directly to iFly Cowork, and complete the migration **by October 15, 2026**.
+
+**The open-source edition of Astron RPA will continue to be maintained and updated and is not affected by this notice.** It uses your self-hosted server and Casdoor authentication and does not depend on the SaaS login service.
+
+---
+
+### Q: Do I have to manually build the client?
+
+**A:** ✅ **No!** You can download the msi installer package directly from the [Release version](https://github.com/iflytek/astron-rpa/releases) and install it directly.
+
+---
+
+### Q: How do I quickly deploy the latest code?
+
+**A:** 
+
+#### Server Update Method 1️⃣: Quick Update (Download Latest Image)
+
+Best for production environments, the fastest and simplest update method.
+
+```bash
+# 1. Stop old containers
+docker-compose down
+
+# 2. Remove old images (optional, to clean up local images)
+docker rmi ghcr.io/iflytek/astron-rpa/openapi-service:latest
+docker rmi ghcr.io/iflytek/astron-rpa/ai-service:latest
+docker rmi ghcr.io/iflytek/astron-rpa/robot-service:latest
+
+# 3. Start new containers and automatically download latest images
+docker-compose up -d
+```
+
+#### Server Update Method 2️⃣: Local Build (For Developers)
+
+Allows customization, suitable for development and testing environments.
+
+```bash
+# 1. Pull the latest code
+git pull origin main
+
+# 2. Enter docker directory
+cd docker
+
+# 3. Edit docker-compose.yml
+# - Comment out the image line
+# - Uncomment the build section
+
+# Example configuration:
+# services:
+#   openapi-service:
+#     # image: ghcr.io/iflytek/astron-rpa/openapi-service:latest
+#     build:
+#       context: ..
+#       dockerfile: backend/openapi-service/Dockerfile
+
+# 4. Build and start locally
+docker-compose up -d --build
+
+# 5. Wait for build to complete (may take several minutes)
+docker-compose logs -f
+```
+
+> 💡 **Update Tips:** 
+> - Method 1️⃣ is fastest, suitable for production
+> - Method 2️⃣ allows customization, suitable for developers
+> - Database data is preserved during updates (mysql container data in volumes)
+
+#### Server Update Method 3️⃣: Update Database with ATLAS
+
+Quickly update database schema by starting the ATLAS container for automatic migration.
+
+```bash
+# 1. Start the ATLAS container for database migration
+docker-compose up -d atlas
+
+# 2. View ATLAS migration logs (ensure migration succeeded)
+docker-compose logs -f atlas
+```
+
+> 💡 **About ATLAS:**
+> - ATLAS is a database version management tool for automatically executing database migration scripts
+> - Each server update may include database schema changes that need to be applied via ATLAS
+> - Existing data in the database is preserved; only table structures and schema are updated
+
+---
+
+#### Client Update Method 1️⃣: Update Python Packages Directly
+
+Quick development iteration, only updating specific packages.
+
+If you've modified Python packages in the `engine` directory (such as `workflowlib`, `executor`, etc.), you can copy them directly to the client's Python environment:
+
+```bash
+# Example: updating workflowlib
+# 1. Find the source code location
+# engine/shared/astronverse-workflowlib
+
+# 2. Copy to client installation directory
+# From: \astron-rpa\engine\shared\astronverse-workflowlib\src\astronverse\workflowlib
+# To: C:\Program Files\Astron RPA\data\python_core\Lib\site-packages\astronverse\workflowlib
+```
+
+**Common Packages and Locations:**
+
+| 📦 Package | 📂 Source Code Location | 🎯 Target Location |
+|---------|----------|--------|
+| workflowlib | `engine/shared/astronverse-workflowlib/src/astronverse/workflowlib` | `<install_dir>/data/python_core/Lib/site-packages/astronverse/workflowlib` |
+| executor | `engine/servers/astronverse-executor/src/astronverse/executor` | `<install_dir>/data/python_core/Lib/site-packages/astronverse/executor` |
+| browser | `engine/components/astronverse-browser/src/astronverse/browser` | `<install_dir>/data/python_core/Lib/site-packages/astronverse/browser` |
+| other packages | `engine/<?>/astronverse-*/src/astronverse/*` | `<install_dir>/data/python_core/Lib/site-packages/astronverse/*` |
+
+> 💡 **Restart Tip:** 
+> - If updating packages in Servers, you need to restart the client to load the new packages
+
+---
+
+#### Client Update Method 2️⃣: Repackage and Reinstall
+
+Use this when updating multiple packages or need a complete version update.
+
+If you've made extensive changes or want to fully update the client, you can use `build.bat` to package a new client msi installer:
+
+```bash
+# 1. Run in the project root directory
+.\build.bat
+
+# 2. Wait for build to complete (may take 10-30 minutes)
+# New msi installer will be generated in build/dist/ directory
+
+# 3. Use the newly generated msi installer to reinstall
+# - Run build/dist/*.msi file directly
+# - Or replace it in the release directory for other users to download
+```
+
+---
+
+#### Update Methods Comparison
+
+| 🔄 Update Method | 🎯 Use Case | ⚡ Speed | 📚 Complexity |
+|---------|---------|------|--------|
+| Copy Python packages directly | Quick dev iteration, only update specific packages | 🚀 Fast | 🟢 Simple |
+| Repackage msi | Multiple packages update, need complete version | 🐢 Slow | 🟡 Medium |
+| Download new Release | New version release, production environment | 🔄 Medium | 🟢 Simple |
+
+> 💡 **Best Practices:** 
+> - 🔨 **Development Phase** → Use "Copy packages" for quick iteration
+> - ✅ **Feature Complete** → Use "build.bat" to package as complete installer
+> - 🚀 **Production** → Use official Release version
+
+---
+
+## ⚡ Performance & Loading
+
+### Q: Why does the software hang on loading?
+
+**A:** 
+
+**Here are some situations encountered in practice:**
+
+#### 1️⃣ **remote_addr** not modified in conf.yaml
+
+**❌ Symptom:** Client hangs on loading page
+
+**✅ Solution:** After installation, modify the server address in `resources/conf.yaml` in the installation directory:
+
+```yaml
+remote_addr: https://rpa.example.com/
+skip_engine_start: false
+```
+
+---
+
+#### 2️⃣ Server hasn't fully started up yet
+
+**❌ Symptom:** Newly started service is still initializing
+
+**✅ Solution:** Wait a while and then restart the client
+
+---
+
+#### 3️⃣ CASDOOR_EXTERNAL_ENDPOINT not modified in .env
+
+**❌ Symptom:** Authentication service cannot be accessed
+
+**✅ Solution:**
+
+```bash
+# Configure the public Casdoor HTTPS endpoint in .env
+CASDOOR_EXTERNAL_ENDPOINT="https://auth.example.com:8443"
+```
+
+---
+
+## 📖 Feature Usage
+
+### Q: 🔄 Why can't I capture web elements? Why does web automation always fail?
+
+**A:** 
+
+🔴 **Most likely you haven't installed the browser plugin**
+
+![](./docs/images/browser-plugin.png)
+
+**Other common reasons:**
+1. **Display settings:** Ensure your computer monitor scaling is set to **100%**.
+2. **Mode selection:** Use "Browser Plugin" mode for capturing web content; use "Desktop Element" mode for capturing the browser itself (like the address bar).
+
+For more web automation information, see the [Official Guide](https://www.iflyrpa.com/docs/quick-start/web-automation.html)
+
+### Q: How do I get an open browser without activating or maximizing its window?
+
+**A:** Disable **Activate and maximize window** (`activate_window`) in `BrowserSoftware.get_current_obj`. Its default is `True`, including for saved workflows that omit the parameter. With `False`, the component returns the browser object without changing window focus or size; keep the intended page active in the window connected to the AstronRPA extension. If the option is missing from the designer, update the component metadata together with the matching client code; see the [metadata guide](engine/README.md).
+
+### Q: Why do unread-only mail queries return the same messages?
+
+**A:** With **Mark as read** (`mask_as_read_flag`) disabled, receiving mail uses `BODY.PEEK[]` and leaves unread messages unread. Repeated unread-only queries can therefore return them again. Enable this option when the workflow should consume unread mail; only matching messages actually returned are marked, not every scanned message.
+
+When upgrading from versions that fetched `RFC822`, workflows must not rely on fetching to implicitly mark messages read. Set the option explicitly if that behavior is required. Read-only integrations require it to remain disabled, so those callers must handle deduplication themselves.
+
+### Q: 🆕 How to handle web page screenshots and CAPTCHAs?
+
+**A:**
+
+1. Use the "Webpage Screenshot" atomic capability.
+2. For text on Canvas or special CAPTCHAs, you can process them by combining OCR or large model image recognition capabilities.
+
+### Q: 🆕 How does the robot operate web drop-down menus with lazy loading (Virtual List) characteristics?
+
+**A:**
+
+For "lazy loading" drop-down menus where the rendered options exceed a certain number (e.g., 200), but the actual HTML only renders a few within the viewport (e.g., 10), normal capturing will fail when scrolling.
+**Solutions:**
+1. **Keyboard Simulation:** Use "Simulate Keystrokes" (such as the down arrow `Down`) to select options one by one.
+2. **XPath Customization:** If the element exists in the DOM although invisible, try getting it via customized XPath.
+3. **Image Recognition:** Combine with image recognition clicks for auxiliary positioning.
+4. **Scroll Page Operation:** Add scrolling operations to trigger element rendering, and then perform capturing or clicking.
+
+---
+
+### Q: How do I use AI capabilities in workflows?
+
+**A:** 
+
+Before using AI atomic capabilities, you need to configure the corresponding AI parameters when deploying the server.
+
+```yaml
+# Large model URL and corresponding API_KEY (compatible with OpenAI format)
+AICHAT_BASE_URL="https://api.deepseek.com/v1/"
+AICHAT_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxx"
+
+# Iflytek Cloud OCR authentication method (get from official website)
+XFYUN_APP_ID=dxxxxx38
+XFYUN_API_SECRET=ZTFxxxxxxxxxxxxxxxxNDVm
+XFYUN_API_KEY=c4xxxxxxxxxxxxxxxx8a7
+
+# Yunma CAPTCHA authentication method
+JFBYM_ENDPOINT="http://api.jfbym.com/api/YmServer/customApi"
+JFBYM_API_TOKEN="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+> ⚠️ **Important:** Restart the server after configuration to ensure it takes effect
+
+---
+
+### Q: How do I make external calls? How do I use MCP?
+
+**A:** 
+
+For external calls, the official [documentation](https://www.iflyrpa.com/docs/open-api/overview.html) has detailed descriptions and API documentation.
+
+The only thing to note is that all URLs need to be changed from the official domain to your own server domain.
+
+```bash
+# Official version:
+https://newapi.iflyrpa.com/api/rpa-openapi/workflows/get
+
+# Open-source version:
+https://rpa.example.com/api/rpa-openapi/workflows/get
+```
+
+> 📌 **Reminder:** All robots that need to be called externally need to be published in the designer first, then configured for external calls in the executor
+
+### Q: 🆕 How to pass parameters (input/output) in RPA workflows?
+
+**A:** 
+
+- **Input parameters:** Define "Process Parameters" in the RPA workflow design, and pass the corresponding Key-Value when calling externally.
+- **Output parameters:** Return JSON data through HTTP request nodes or Python scripts, which can be referenced by subsequent nodes via variables.
+
+### Q: 🆕 How does the main workflow pass parameters to a component?
+
+**A:** 
+
+1. Set "Input Parameters" (or component properties) in the component.
+2. Publish the component.
+3. Drag the component into the main workflow again, and you can assign values to these parameters in the right configuration panel.
+> ⚠️ **Note:** If the component's parameters are modified, it must be published first, and re-dragged into the main workflow to use the new parameters.
+
+### Q: 🆕 Are component element names unique within a component? Do duplicate names across different components cause issues?
+
+**A:** Element names are unique within a single component. Element names across different components can be duplicated without affecting each other.
+
+### Q: 🆕 Does RPA web element positioning (XPath) support using variables?
+
+**A:** ✅ **Yes!** You can use variables or parameters in the XPath path string to achieve dynamic element positioning.
+
+### Q: 🆕 What is the default positioning method used for capturing web elements? What if the absolute path changes due to changes in the page structure?
+
+**A:** 
+
+- When capturing an element, if the element has an ID, the ID will be locked by default (as part of the XPath).
+- If the absolute path changes due to a web page structure change, but the ID remains the same, you can adapt by adjusting the ID's checkbox state.
+- If the ID changes or is unstable, consider unchecking the ID attribute, and use other stable relative paths or attributes for positioning, or observe the page change patterns to manually modify the XPath.
+
+### Q: What if dependency package downloads fail?
+
+**A:** 
+
+The domestic network environment may cause timeouts when connecting to the official PyPI source.
+
+**✅ Solution:** Configure a domestic mirror source (like Alibaba Cloud).
+
+```ini
+# pip configuration example
+[global]
+index-url = https://mirrors.aliyun.com/pypi/simple/
+trusted-host = mirrors.aliyun.com
+```
+
+### Q: 🆕 How to install third-party Python libraries (such as `ddddocr`) in an intranet environment (offline)?
+
+**A:** 
+In an environment without external network access, normal `pip install` or offline packages may fail due to environmental differences.
+**✅ Solution (Bottom-level injection):**
+1. Prepare the complete dependency files of the required library in an external network environment.
+2. Directly copy and integrate the dependency library files into the `python_core` base environment of the RPA client engine (e.g., `<installation_directory>/data/python_core/Lib/site-packages/`).
+3. Reset the `venv` environment of the client to trigger environment reconstruction and load the new library.
+
+### Q: 🆕 Can it be used in an intranet?
+
+**A:** ✅ **Yes!** As long as the RPA client and server can communicate normally within the same intranet environment.
+
+### Q: 🆕 Are there any limits on the number of workflows for the free/open-source version?
+
+**A:** The open-source version is generally consistent with the personal version. If there are no special cloud account binding restrictions, there are usually no strict quantity limits. Please refer to the official instructions or Release notes for details.
+
+### Q: 🆕 Virtual desktop fails to run / white screen / prompts "Authorization required to enable"?
+
+**A:** 
+1. **Check the "Remote Desktop" switch (most common reason)**: 
+   - Even in Windows Pro, the remote desktop feature might be disabled by default.
+   - **Operation**: Go to `Settings` -> `System` -> `Remote Desktop`, and ensure the switch is **"On"**.
+2. **System Requirements**: Only supports Windows 8, Windows Server 2012, and higher versions.
+   - ❌ **Does not support Windows Home**: Home edition lacks RDP components.
+3. **Account Password**: 
+   - Ensure the current Windows login account **has a password set**. RDP usually does not allow empty password logins.
+4. **Permission Settings**: 
+   - Try running the RPA client as an **Administrator**.
+5. **Stability**: This feature may currently be unstable, it is recommended to prioritize running in a standard desktop environment.
+
+### Q: 🆕 Can AstronRPA add comments in sub-workflows?
+
+**A:** Yes. The workflow designer supports adding comments.
+
+### Q: 🆕 How do teams keep workflow versions consistent when several people edit the same process? Is there Git-style merging?
+
+**A:** There is **no Git-style branch merging** today, but the built-in mechanisms let a team stay consistent:
+
+1. **Workflow version management**: publish new versions, roll back to a previous one, and diff changes at publish time, so you avoid "one version per laptop".
+2. **Centralized distribution**: publish the stable, tested process and let the whole team fetch and run it from one place instead of copying local files around.
+3. **Collaboration conventions**: avoid concurrent edits on the same process; split large processes into components/sub-workflows so people can own separate modules.
+
+### Q: 🆕 Where is the source code for Go binaries such as `route.exe`?
+
+**A:** Some Go components live on the `dev` branch — switch to that branch to find them. If you cannot locate the directory on `main`, check your current branch first.
+
+---
+
+## 🐛 Troubleshooting
+
+### Q: How do I collect diagnostic information?
+
+**A:** 
+
+When encountering problems, query the server and engine logs:
+
+```bash
+# 1️⃣ Query Docker logs
+docker ps -a
+docker logs [container_name] > logs.txt
+
+# 2️⃣ Query client logs
+# Logs are saved in: installation_directory\data\logs
+# If software is installed on C drive: %APPDATA%\astron-rpa\logs
+```
+
+### Q: Startup error, white screen, or abnormal interface?
+
+**A:** 
+
+It may be missing `Microsoft Edge WebView2 Runtime` or the version is too low (common in older systems or cloud desktops). Please try updating WebView2 Runtime.
+
+### Q: 🆕 What should I do if the email component reports errors (e.g., search parameter mismatch, unknown encoding utf-8) when using imap4 to receive emails?
+
+**A:** This is due to compatibility issues with specific email server interactions and encoding processing. It is recommended to update to the latest version of the client. The underlying component has fixed the encoding parsing and attachment name regex extraction null pointer issues. If encountered in older versions, you can contact technical support for a source code patch.
+
+### Q: Why is an attachment filename or save path rejected?
+
+**A:** Attachment saving accepts plain filenames within the selected directory. Names containing paths, drive prefixes, Windows reserved names or invalid characters (including alternate data streams such as `file.txt:stream`) are rejected. The destination must not be a symbolic link or resolve outside that directory. Use a valid filename and a regular destination file; valid attachments still overwrite an existing file with the same name. When **Save attachments** is disabled, names are returned without saving files or applying this filename check.
+
+### Q: 🆕 Why does Excel automation abnormally open a new blank workbook when performing operations like "Copy Cells"?
+
+**A:** This may be an instance conflict caused by the underlying scheduling mechanism. In the latest version, `application.py` has been optimized to prioritize taking over existing Excel instances and disable warning pop-ups by default. Please ensure you upgrade to the latest client version.
+
+### Q: 🆕 Web element capturing feature frequently fails or causes the browser to crash?
+
+**A:** 
+
+If a crash or complete failure occurs when capturing elements, it may be because other applications running in the system (such as the "Doubao" client) are also trying to take over the browser environment, causing a dual conflict.
+**Solution:** Try closing potential interfering applications, adjust configurations, and then restart the RPA client and browser.
+
+### Q: Build or startup prompts "Python copy failed"?
+
+**A:** 
+
+1. **Path issue:** Ensure the project path does not contain Chinese or special characters.
+2. **Permission issue:** Try running as an administrator.
+
+### Q: Excel/WPS automation reports "Registry information not detected"?
+
+**A:**
+
+1. **Permission issue:** Try running the client as an administrator (or remove administrator privileges), sometimes mismatched permissions can prevent reading the registry.
+2. **Installation issue:** Ensure Office/WPS installation is complete and not corrupted.
+
+### Q: Reports "send uuid empty" or port exception?
+
+**A:**
+
+- **send uuid empty:** Usually the client and server versions are inconsistent, or the connection has not been established. Please update to the latest version and restart the client.
+- **Port issue:** Ports `13160`/`13159` are RPA internal scheduling service ports, please ensure they are not blocked or occupied by the firewall.
+
+### Q: The client program keeps in an infinite loop or reports errors?
+
+**A:** Check the logs in `data/logs/picker` or `robot-service`. Sometimes you need to clear the local cache data (delete the `data` directory) and try again.
+
+### Q: The server Redis container keeps restarting?
+
+**A:** 
+There may be a startup script compatibility issue in the image (e.g., missing bash).
+**Solutions:** 
+1. Try changing `bash` to `sh` in the startup command.
+2. Or pull the latest `latest` image, which usually has this issue fixed.
+
+### Q: 🆕 A scheduled task did not fire at its scheduled time?
+
+**A:** First separate "the task never fired" from "it fired but the run failed" — the logs look different.
+
+**1. Collect logs** (required for diagnosis):
+```bash
+# Archive this directory and attach it to your report
+%APPDATA%\astron-rpa\logs
+```
+
+**2. Common cause: a very short misfire grace window**
+Scheduled tasks run on an APScheduler cron trigger, whose default misfire tolerance is very short (about 1 second). When the machine is under load, waking from sleep, or losing its time slice, that window can be missed and the run is skipped as a misfire. This is why a task "worked for days and then silently skipped one night".
+
+**3. Mitigations you can apply now:**
+- Switch to an **advanced cron expression**, which is more expressive and more predictable;
+- Avoid on-the-hour / on-the-minute peaks and stagger multiple tasks;
+- Make sure the machine is not locked, asleep, or running with the client closed during the scheduled window;
+- With multiple scheduled tasks, check whether all of them or only one failed to fire — that quickly separates a scheduler problem from a single-task configuration problem.
+
+**4. When reporting**: attach the logs, a screenshot of the task configuration, and the exact timestamps that fired vs. did not fire.
+
+---
+
+### Q: 🆕 The client login returns 502 or shows `timeout of 20000ms exceeded`?
+
+**A:** These errors usually mean the client cannot reach the server's authentication service (Casdoor). Check in this order:
+
+1. **Is `CASDOOR_EXTERNAL_ENDPOINT` reachable from the client?** The address in `.env` must be a server IP or domain that the client machine can reach. Do not use `127.0.0.1`, `localhost` or an internal container address. See "Why does the software hang on loading?" above for an example.
+2. **Are the services still initializing?** Casdoor and other containers may not be ready right after startup. Wait a moment, then restart the client.
+3. **Are the ports open?** Make sure the firewall or security group allows the external gateway and Casdoor ports (as configured in `CASDOOR_EXTERNAL_ENDPOINT` and the gateway settings).
+4. **Did you upgrade from an HTTP deployment?** The default deployment now exposes the gateway and Casdoor over HTTPS and no longer maps Casdoor's port `8000` to the public network. Replace the old `http://<IP>:8000` address with the new HTTPS address, or explicitly use the `legacy-http` compatibility mode described in the [HTTPS deployment guide](docker/HTTPS_DEPLOYMENT.md).
+
+After changing `.env`, run `docker compose up -d` again so the new settings take effect, and use `docker compose logs -f` to check the Casdoor and gateway containers for errors.
+
+---
+
+## 📞 Get Help
+
+### 🌐 Official Channels
+
+| Channel | Link | Response Time |
+|------|------|---------|
+| 🐙 GitHub Issues | [Submit Issue](https://github.com/iflytek/astron-rpa/issues) | 24-48 hours |
+| 💬 Discussions | [Discussion Forum](https://github.com/iflytek/astron-rpa/discussions) | Within a week |
+
+### 📚 Useful Resources
+
+- 🏠 [Project Homepage](https://github.com/iflytek/astron-rpa)
+- 📖 [Project Introduction](./README.md)
+- 📝 [Complete Installation Guide](./BUILD_GUIDE.md)
+- 🐳 [Docker Deployment Guide](./docker/QUICK_START.md)
+- 👨‍💻 [Usage Guide](https://www.iflyrpa.com/docs)
+
+---
+
+## 🔄 Update History
+
+| Version | Date | Content |
+|------|------|---------|
+| v1.0 | 2025-11-26 | Initial Release |
+| v1.1 | TBD | Will add more FAQs |
+| v1.1.5 | 2026-01-29 | Migrated architecture to Electron; Added Computer Use Agent; Supported data tables; Excel V2 components; Aligned open-source version with SaaS version |
+
+---
+
+> ⏰ **Last Updated:** 2026-02-01  
+> 👤 **Maintainer:** DoctorBruce  
+> 📜 **License:** Apache-2.0

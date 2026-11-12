@@ -1,0 +1,319 @@
+import { Icon, NiceModal } from '@rpa/components'
+import { Button, message, Tooltip } from 'ant-design-vue'
+import { useTranslation } from 'i18next-vue'
+import { storeToRefs } from 'pinia'
+import type { Ref } from 'vue'
+import { h, ref } from 'vue'
+
+import $loading from '@/utils/globalLoading'
+
+import { getTeams } from '@/api/market'
+import { checkProjectNum, delectProject, isInTask } from '@/api/project'
+import { PublishModal } from '@/components/PublishComponents'
+import { fromIcon } from '@/components/PublishComponents/utils'
+import { DesignerRobotDetailModal } from '@/components/RobotDetail'
+import { ARRANGE } from '@/constants/menu'
+import { ROBOT_EDITING } from '@/constants/resource'
+import { useRoutePush } from '@/hooks/useCommonRoute'
+import { useAppConfigStore } from '@/stores/useAppConfig'
+import { useUserStore } from '@/stores/useUserStore'
+import type { AnyObj } from '@/types/common'
+import { CopyModal, RenameModal, VersionManagementModal } from '@/views/Home/components/modals/index'
+import OperMenu from '@/views/Home/components/OperMenu.vue'
+import { ShareRobotModal } from '@/views/Home/components/ShareRobotModal'
+import StatusCircle from '@/views/Home/components/StatusCircle.vue'
+import { PENDING } from '@/views/Home/components/TeamMarket/config/market'
+
+import { handleRun, useCommonOperate } from '../useCommonOperate'
+
+export function useProjectOperate(
+  homeTableRef: Ref,
+  consultRef: Ref,
+  refreshHomeTable: () => void,
+  refreshWithDelete: (count?: number) => void,
+) {
+  const { t } = useTranslation()
+  const appStore = useAppConfigStore()
+  const userStore = useUserStore()
+  const { appInfo } = storeToRefs(appStore)
+  const { handleDeleteConfirm, getSituationContent } = useCommonOperate()
+
+  const currHoverId = ref('')
+
+  const createColumns = ref([
+    {
+      title: t('projectName'),
+      dataIndex: 'robotName',
+      key: 'robotName',
+      ellipsis: true,
+      width: 150,
+      resizable: true,
+      customRender: ({ record }) => (
+        <div class="flex items-center gap-2 overflow-hidden w-full">
+          <Tooltip title={t('common.idWithColon', { id: record.robotId })}>
+            <span class="truncate flex-1">{ record.robotName }</span>
+          </Tooltip>
+          {currHoverId.value === record.robotId && (
+            <Tooltip title={t('rename')}>
+              <Icon name="projedit" class="hover:text-primary cursor-pointer" onClick={() => handleRename(record)} />
+            </Tooltip>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: t('updated'),
+      dataIndex: 'updateTime',
+      key: 'updateTime',
+      width: 150,
+      ellipsis: true,
+      sorter: true,
+    },
+    {
+      title: t('common.publishStatus'),
+      dataIndex: 'publishStatus',
+      key: 'publishStatus',
+      customRender: ({ record }) => <StatusCircle type={`${record.publishStatus}`} />,
+    },
+    {
+      title: t('common.enabled'),
+      dataIndex: 'version',
+      key: 'version',
+      customRender: ({ record }) => {
+        const hasVersion = Number(record.version) !== 0
+        const versionDes = hasVersion ? `V${record.version}` : '--'
+        return (
+          <span class="inline-flex gap-2 items-center">
+            <span>{versionDes}</span>
+            {hasVersion && (
+              <Tooltip title={t('common.versionManagement')}>
+                <Button onClick={() => versionManage(record)} size="small" class="!p-0 flex items-center justify-center border-none bg-transparent">
+                  <Icon name="history" size="16px" />
+                </Button>
+              </Tooltip>
+            )}
+          </span>
+        )
+      },
+    },
+    {
+      title: t('common.latestVersion'),
+      dataIndex: 'latestVersion',
+      key: 'latestVersion',
+      ellipsis: true,
+      customRender: ({ record }) => Number(record?.latestVersion) === 0 ? '--' : `V${record?.latestVersion}`,
+    },
+    {
+      title: t('operate'),
+      dataIndex: 'oper',
+      key: 'oper',
+      width: 150,
+      customRender: ({ record }) => {
+        return <OperMenu moreOpts={projectMoreOpts} baseOpts={projectBaseOpts} row={record} />
+      },
+    },
+  ])
+
+  const projectBaseOpts = [
+    {
+      key: 'run',
+      text: 'run',
+      clickFn: (record) => { handleRun({ ...record, exec_position: 'PROJECT_LIST' }) },
+      icon: h(<Icon name="play-circle-stroke" size="16px" />),
+    },
+    {
+      key: 'edit',
+      text: 'edit',
+      clickFn: handleEdit,
+      icon: h(<Icon name="projedit" size="16px" />),
+    },
+  ]
+
+  const projectMoreOpts = [
+    {
+      key: 'createCopy',
+      text: 'createCopy',
+      icon: h(<Icon name="create-copy" size="16px" />),
+      clickFn: createCopy,
+    },
+    {
+      key: 'publish',
+      text: 'release',
+      icon: h(<Icon name="tools-publish" size="16px" />),
+      clickFn: publish,
+    },
+    {
+      key: 'share',
+      text: 'common.share',
+      icon: h(<Icon name="share" size="16px" />),
+      clickFn: shareToMarket,
+      disableFn: (row: AnyObj) => {
+        return row.applicationStatus === PENDING
+      },
+      disableTip: 'designerManage.onShelfApplication',
+    },
+    {
+      key: 'virtualRun',
+      text: 'virtualDesktopRunning',
+      icon: h(<Icon name="virtual-desktop" size="16px" />),
+      clickFn: (record) => { handleRun({ ...record, exec_position: 'PROJECT_LIST', open_virtual_desk: true }) },
+    },
+    {
+      key: 'detail',
+      text: 'appDetails',
+      icon: h(<Icon name="robot" size="16px" />),
+      clickFn: openDetailModal,
+    },
+    {
+      key: 'del',
+      text: 'delete',
+      icon: h(<Icon name="market-del" size="16px" />),
+      clickFn: handleDeleteProject,
+    },
+  ]
+
+  // 编辑
+  function handleEdit(editObj: AnyObj) {
+    const { robotId, robotName, version, editEnable } = editObj
+    if (!editEnable) {
+      message.info(t('common.sourceNotOpenEditDisabled'))
+      return
+    }
+    useRoutePush({ name: ARRANGE, query: { projectId: robotId, projectName: robotName, projectVersion: version } })
+  }
+
+  // 创建副本
+  async function createCopy(editObj: AnyObj) {
+    if (userStore.currentTenant?.tenantType !== 'enterprise') {
+      const res = await checkProjectNum()
+      if (!res.data) {
+        consultRef.value?.init({
+          authType: appInfo.value.appAuthType,
+          trigger: 'modal',
+          modalConfirm: {
+            title: t('designerManage.limitReachedTitle'),
+            content: userStore.currentTenant?.tenantType === 'personal'
+              ? t('designerManage.personalLimitReachedContent')
+              : t('designerManage.proLimitReachedContent'),
+            okText: userStore.currentTenant?.tenantType === 'personal'
+              ? t('designerManage.upgradeToPro')
+              : t('designerManage.upgradeToEnterprise'),
+            cancelText: t('designerManage.gotIt'),
+          },
+          consult: {
+            consultTitle: userStore.currentTenant?.tenantType === 'personal'
+              ? t('designerManage.consultProTitle')
+              : t('designerManage.consultEnterpriseTitle'),
+            consultEdition: userStore.currentTenant?.tenantType === 'personal' ? 'professional' : 'enterprise',
+            consultType: 'consult',
+          },
+        })
+        return
+      }
+    }
+    NiceModal.show(CopyModal, {
+      robotId: editObj.robotId,
+      robotName: editObj.robotName,
+      onRefresh: () => refreshHomeTable(),
+    })
+  }
+
+  // 重命名
+  function handleRename(editObj: AnyObj) {
+    NiceModal.show(RenameModal, {
+      robotId: editObj.robotId,
+      robotName: editObj.robotName,
+      onRefresh: () => refreshHomeTable(),
+    })
+  }
+
+  // 版本管理
+  function versionManage(editObj: AnyObj) {
+    NiceModal.show(VersionManagementModal, {
+      robotId: editObj.robotId,
+      onRefresh: () => refreshHomeTable(),
+    })
+  }
+
+  // 发版
+  function publish(editObj: AnyObj) {
+    NiceModal.show(PublishModal, { robotId: editObj.robotId, onOk: () => refreshHomeTable() })
+  }
+
+  // 分享
+  function shareToMarket(editObj: AnyObj) {
+    if (editObj.publishStatus === ROBOT_EDITING) {
+      message.info(t('market.notSupportShareWhileEditing'))
+      return
+    }
+    $loading.open({ msg: t('loading') })
+    getTeams().then((data) => {
+      $loading.close()
+      if (!(data && data.length > 0)) {
+        message.warning(t('market.noTeamJoinTip'))
+        return
+      }
+
+      NiceModal.show(ShareRobotModal, {
+        record: {
+          ...editObj,
+          icon: fromIcon(editObj.iconUrl).icon,
+          color: fromIcon(editObj.iconUrl).color,
+        },
+        marketList: data.map(item => ({
+          ...item,
+          marketName: `${item.marketName} ID:${item.marketId}`,
+        })),
+        onRefresh: () => refreshHomeTable(),
+      })
+    }).finally(() => {
+      $loading.close()
+    })
+  }
+
+  function openDetailModal(editObj: AnyObj) {
+    NiceModal.show(DesignerRobotDetailModal, {
+      source: homeTableRef.value?.localOption?.params?.dataSource,
+      robotId: editObj.robotId,
+    })
+  }
+
+  // 删除
+  async function handleDeleteProject(editObj: AnyObj) {
+    const { robotId } = editObj
+    const data = await isInTask({ robotId })
+    if (data) {
+      let { situation, taskReferInfoList, robotId } = data
+
+      // 过滤掉taskReferInfoList 中taskName 相同的项
+      taskReferInfoList = taskReferInfoList?.filter((item, index, self) =>
+        index === self.findIndex(t => t.taskName === item.taskName),
+      )
+      const confirm = await handleDeleteConfirm(getSituationContent('design', situation, taskReferInfoList))
+      if (!confirm) {
+        return
+      }
+      await delectProject({
+        robotId,
+        situation,
+        taskIds: taskReferInfoList?.map(item => item.taskId).join(',') || '',
+      })
+      message.success(t('common.deleteSuccess'))
+      refreshWithDelete()
+    }
+  }
+
+  return {
+    currHoverId,
+    createColumns,
+    projectBaseOpts,
+    projectMoreOpts,
+    handleEdit,
+    createCopy,
+    handleRename,
+    versionManage,
+    publish,
+    shareToMarket,
+    handleDeleteProject,
+  }
+}

@@ -1,0 +1,77 @@
+atomic:
+  Docx.open_docx:
+    icon: word-open-document
+    path:
+    - /atomicTree/document/document.Word
+  Docx.read_docx:
+    icon: word-read-content
+    path:
+    - /atomicTree/document/document.Word
+  Docx.create_docx:
+    icon: word-new-document
+    path:
+    - /atomicTree/document/document.Word
+  Docx.save_docx:
+    icon: word-save-document
+    path:
+    - /atomicTree/document/document.Word
+  Docx.close_docx:
+    icon: word-close-document
+    path:
+    - /atomicTree/document/document.Word
+  Docx.insert_docx:
+    icon: word-insert-text
+    path:
+    - /atomicTree/document/document.Word
+  Docx.select_text:
+    icon: word-select-text
+    path:
+    - /atomicTree/document/document.Word
+  Docx.get_cursor_position:
+    icon: word-position-cursor
+    path:
+    - /atomicTree/document/document.Word
+  Docx.move_cursor:
+    icon: word-move-cursor
+    path:
+    - /atomicTree/document/document.Word
+  Docx.insert_sep:
+    icon: word-insert-page
+    path:
+    - /atomicTree/document/document.Word
+  Docx.insert_hyperlink:
+    icon: word-insert-hyperlink
+    path:
+    - /atomicTree/document/document.Word
+  Docx.insert_img:
+    icon: word-insert-image
+    path:
+    - /atomicTree/document/document.Word
+  Docx.read_table:
+    icon: word-read-table
+    path:
+    - /atomicTree/document/document.Word
+  Docx.insert_table:
+    icon: word-insert-table
+    path:
+    - /atomicTree/document/document.Word
+  Docx.delete:
+    icon: word-delete-content
+    path:
+    - /atomicTree/document/document.Word
+  Docx.replace:
+    icon: word-replace-content
+    path:
+    - /atomicTree/document/document.Word
+  Docx.create_comment:
+    icon: word-create-comment
+    path:
+    - /atomicTree/document/document.Word
+  Docx.delete_comment:
+    icon: word-delete-comment
+    path:
+    - /atomicTree/document/document.Word
+  Docx.convert_format:
+    icon: word-export-pdf-txt
+    path:
+    - /atomicTree/document/document.Word

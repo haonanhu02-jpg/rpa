@@ -1,0 +1,13 @@
+atomic:
+  Enterprise.upload_to_sharefolder:
+    icon: upload-to-shared-folder
+    path:
+    - /atomicTree/enterprise
+  Enterprise.download_from_sharefolder:
+    icon: download-from-shared-folder
+    path:
+    - /atomicTree/enterprise
+  Enterprise.get_shared_variable:
+    icon: get-shared-variable
+    path:
+    - /atomicTree/enterprise

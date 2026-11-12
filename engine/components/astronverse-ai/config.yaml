@@ -1,0 +1,57 @@
+atomic:
+  SemanticAI.choose:
+    icon: single-chat
+    path:
+    - /atomicTreeExtend/ai/llm_capability
+  Agent.call_dify:
+    icon: call-dify-workflow
+    path:
+    - /atomicTreeExtend/ai/ai_workflow
+  Agent.call_dify_chatflow:
+    icon: call-dify-workflow
+    path:
+    - /atomicTreeExtend/ai/ai_workflow
+  Agent.call_xcagent:
+    icon: call-dify-workflow
+    path:
+    - /atomicTreeExtend/ai/ai_workflow
+  Agent.call_astron_agent:
+    icon: call-dify-workflow
+    path:
+    - /atomicTreeExtend/ai/ai_workflow
+  ChatAI.single_turn_chat:
+    icon: single-chat
+    path:
+    - /atomicTreeExtend/ai/llm_capability
+  ChatAI.chat:
+    icon: multi-chat
+    path:
+    - /atomicTreeExtend/ai/llm_capability
+  ChatAI.knowledge_chat:
+    icon: knowledge-qa
+    path:
+    - /atomicTreeExtend/ai/llm_capability
+  ContractAI.get_factors:
+    icon: contract-element-extraction
+    path:
+    - /atomicTreeExtend/ai/business_ai
+  DocumentAI.theme_expand:
+    icon: topic-expand
+    path:
+    - /atomicTreeExtend/ai/llm_capability
+  DocumentAI.sentence_expand:
+    icon: paragraph-expand
+    path:
+    - /atomicTreeExtend/ai/llm_capability
+  DocumentAI.sentence_reduce:
+    icon: paragraph-abbreviate
+    path:
+    - /atomicTreeExtend/ai/llm_capability
+  RecruitAI.generate_keywords:
+    icon: job-keyword-generation
+    path:
+    - /atomicTreeExtend/ai/business_ai
+  RecruitAI.rating_resume:
+    icon: resume-scoring
+    path:
+    - /atomicTreeExtend/ai/business_ai

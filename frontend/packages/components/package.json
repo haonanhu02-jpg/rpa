@@ -1,0 +1,87 @@
+{
+  "name": "@rpa/components",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build:icon": "node scripts/download-icons.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "require": "./src/index.ts"
+    },
+    "./auth": {
+      "types": "./src/components/Auth/index.ts",
+      "import": "./src/components/Auth/index.ts",
+      "require": "./src/components/Auth/index.ts"
+    },
+    "./config-provider": {
+      "types": "./src/components/ConfigProvider/index.ts",
+      "import": "./src/components/ConfigProvider/index.ts",
+      "require": "./src/components/ConfigProvider/index.ts"
+    },
+    "./icon": "./lib/iconpark.js",
+    "./resolver": "./resolver.js"
+  },
+  "dependencies": {
+    "@ant-design/colors": "^7.2.1",
+    "@guolao/vue-monaco-editor": "^1.5.4",
+    "@progress/jszip-esm": "^1.0.4",
+    "@rpa/shared": "workspace:*",
+    "@tiptap/extension-gapcursor": "^2.7.2",
+    "@tiptap/extension-image": "^2.7.2",
+    "@tiptap/extension-link": "^2.7.2",
+    "@tiptap/extension-placeholder": "^2.7.2",
+    "@tiptap/extension-table": "^2.7.2",
+    "@tiptap/extension-table-cell": "^2.7.2",
+    "@tiptap/extension-table-header": "^2.7.2",
+    "@tiptap/extension-table-row": "^2.7.2",
+    "@tiptap/pm": "^2.7.2",
+    "@tiptap/starter-kit": "^2.7.2",
+    "@tiptap/vue-3": "^2.7.2",
+    "@univerjs/core": "^0.15.0",
+    "@univerjs/preset-sheets-core": "^0.15.0",
+    "@univerjs/preset-sheets-find-replace": "^0.15.0",
+    "@univerjs/presets": "^0.15.0",
+    "@vueuse/core": "^11.0.1",
+    "@zwight/exceljs": "^4.4.2",
+    "crypto-js": "^4.2.0",
+    "dayjs": "^1.11.19",
+    "lodash-es": "catalog:",
+    "monaco-editor": "^0.52.2",
+    "nanoid": "^5.1.6",
+    "papaparse": "^5.5.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tailwind-merge": "^3.4.0",
+    "vscode-languageserver-types": "^3.17.5",
+    "vue-router": "catalog:",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "@ant-design/icons-vue": "^7.0.1",
+    "@types/crypto-js": "^4.2.2",
+    "@vitejs/plugin-vue": "catalog:",
+    "@vitejs/plugin-vue-jsx": "catalog:",
+    "ant-design-vue": "catalog:",
+    "autoprefixer": "^10.4.19",
+    "axios": "^1.7.4",
+    "postcss": "^8.4.38",
+    "sass": "~1.77.4",
+    "tailwindcss": "catalog:",
+    "unplugin-vue-components": "^28.5.0",
+    "vite": "catalog:"
+  },
+  "peerDependencies": {
+    "@ant-design/icons-vue": ">=7",
+    "ant-design-vue": ">=4",
+    "vue": ">=3",
+    "i18next": "^25.3.6",
+    "i18next-vue": "^5.3.0"
+  }
+}

@@ -1,0 +1,46 @@
+[project]
+name = "astronverse-scheduler"
+version = "1.0.1"
+description = "astronverse-scheduler."
+requires-python = ">=3.13"
+
+dependencies = [
+    "astronverse-baseline",
+    "astronverse-websocket-server",
+    "astronverse-browser-plugin",
+    "fastapi",
+    "uvicorn",
+    "requests",
+    "httpx>=0.28,<1",
+    "websockets>=15,<16",
+    "importlib_metadata",
+    "pyperclip",
+    "sseclient",
+    "websocket-client",
+    "websockify",
+    "pyautogui",
+    "pywin32; sys_platform == 'win32'",
+    "PyQt5; sys_platform == 'linux'",
+    "python-lsp-server[pyflakes,mccabe]",
+    "openpyxl",
+    "watchdog",
+    "keyring",
+]
+
+[tool.uv.sources]
+astronverse-baseline = {path = "../../shared/astronverse-baseline", editable = true}
+astronverse-websocket-server = {path = "../../shared/astronverse-websocket-server", editable = true}
+astronverse-browser-plugin = {path = "../../shared/astronverse-browser-plugin", editable = true}
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/astronverse"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "cryptography>=42",
+]

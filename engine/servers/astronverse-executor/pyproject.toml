@@ -1,0 +1,45 @@
+[project]
+name = "astronverse-executor"
+version = "1.0.2"
+description = "astronverse-executor."
+requires-python = ">=3.13"
+
+dependencies = [
+    "websockets",
+    "psutil",
+    "astor",
+    "anyio",
+    "requests",
+    "importlib_metadata",
+    "astronverse-baseline",
+    "astronverse-actionlib",
+    "astronverse-websocket-server",
+    "astronverse-workflowlib",
+    "astronverse-dataprocess",
+    "astronverse-report",
+    "astronverse-script",
+    "astronverse-browser",
+    "astronverse-system",
+    "astronverse-dialog",
+    "astronverse-smart",
+]
+
+[tool.uv.sources]
+astronverse-baseline = {path = "../../shared/astronverse-baseline", editable = true}
+astronverse-actionlib = {path = "../../shared/astronverse-actionlib", editable = true}
+astronverse-websocket-server = {path = "../../shared/astronverse-websocket-server", editable = true}
+astronverse-workflowlib = {path = "../../shared/astronverse-workflowlib", editable = true}
+
+astronverse-dataprocess = {path = "../../components/astronverse-dataprocess", editable = true}
+astronverse-report = {path = "../../components/astronverse-report", editable = true}
+astronverse-script = {path = "../../components/astronverse-script", editable = true}
+astronverse-browser = {path = "../../components/astronverse-browser", editable = true}
+astronverse-system = {path = "../../components/astronverse-system", editable = true}
+astronverse-dialog = {path = "../../components/astronverse-dialog", editable = true}
+astronverse-smart = {path = "../../components/astronverse-smart", editable = true}
+[tool.hatch.build.targets.wheel]
+packages = ["src/astronverse"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

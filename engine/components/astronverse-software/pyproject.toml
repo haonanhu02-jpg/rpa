@@ -1,0 +1,21 @@
+[project]
+name = "astronverse-software"
+version = "1.0.1"
+description = "astronverse-software."
+requires-python = ">=3.13"
+
+dependencies = [
+    "astronverse-actionlib",
+    "psutil",
+    "pywin32; sys_platform == 'win32'"
+]
+
+[tool.uv.sources]
+astronverse-actionlib = {path = "../../shared/astronverse-actionlib", editable = true}
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/astronverse"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

@@ -1,0 +1,12 @@
+pip_cache
+.cookie.json
+.setting.json
+.env
+imgs
+venvs
+build
+python313
+log.txt
+temp_*.json
+astron
+logs

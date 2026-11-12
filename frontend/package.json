@@ -1,0 +1,45 @@
+{
+  "name": "iflyrpa",
+  "version": "1.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "cz": "cz",
+    "preinstall": "npx only-allow pnpm",
+    "lint": "eslint",
+    "lint:fix": "eslint --fix \"**/*.{vue,ts,tsx,js,jsx}\"",
+    "set-env": "pnpm --filter @rpa/web-app run set-env",
+    "set-env:saas": "pnpm --filter @rpa/web-app run set-env saas",
+    "set-env:enterprise": "pnpm --filter @rpa/web-app run set-env enterprise",
+    "dev:web": "pnpm --filter @rpa/web-app run dev",
+    "dev:desktop": "cross-env SKIP_ENGINE_START=1 pnpm --filter astron-rpa run dev",
+    "build:web": "pnpm --filter @rpa/web-app run build",
+    "build:desktop": "pnpm --filter astron-rpa run build:win",
+    "i18n": "env-cmd lobe-i18n locale",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^5.4.1",
+    "@lobehub/i18n-cli": "^1.25.1",
+    "@types/node": "^22.18.10",
+    "@vitest/ui": "3.2.4",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.5",
+    "env-cmd": "^10.1.0",
+    "eslint": "^9.32.0",
+    "eslint-plugin-format": "^1.0.1",
+    "fast-glob": "^3.3.2",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.4"
+  },
+  "volta": {
+    "node": "22.15.0"
+  }
+}

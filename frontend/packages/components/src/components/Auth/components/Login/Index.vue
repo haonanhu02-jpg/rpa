@@ -1,0 +1,123 @@
+<script setup lang="ts">
+import { useTranslation } from 'i18next-vue'
+
+import type { AuthType, Edition, InviteInfo, Platform } from '../../interface'
+
+import ForgotPassword from './ForgotPassword.vue'
+import { useAuthFlow } from './hooks/useAuthFlow'
+import Login from './Login.vue'
+import ModifyPassword from './ModifyPassword.vue'
+import Register from './Register.vue'
+import SetPassword from './SetPassword.vue'
+import TenantSelect from './TenantSelect.vue'
+
+const props = defineProps({
+  platform: { type: String as () => Platform },
+  baseUrl: { type: String },
+  inviteInfo: { type: Object as () => InviteInfo, default: () => null },
+  edition: { type: String as () => Edition, default: 'saas' },
+  authType: { type: String as () => AuthType, default: 'uap' },
+  autoLogin: { type: Boolean, default: true },
+})
+const emits = defineEmits(['finish'])
+
+const { t } = useTranslation()
+const {
+  currentFormMode,
+  cacheFormData,
+  preFormMode,
+  tenants,
+  running,
+  preLogin,
+  handleRegister,
+  handleForgotPassword,
+  handleSetPassword,
+  handleModifyPassword,
+  handleChooseTenant,
+  switchMode,
+  autoPreLogin,
+} = useAuthFlow(props, emits)
+
+defineExpose({
+  autoPreLogin,
+})
+</script>
+
+<template>
+  <div
+    class="auth-container-content bg-[#ffffff]
+    w-full h-[480px] fixed left-0 bottom-0 z-[999] rounded-t-[24px]
+    md:w-[400px] md:h-[540px] md:static md:rounded-[16px]"
+  >
+    <Login
+      v-if="currentFormMode === 'login'"
+      :key="`${edition}_${authType}_login`"
+      :invite-info="inviteInfo"
+      :edition="edition"
+      :auth-type="authType"
+      :running="running"
+      @submit="preLogin"
+      @switch-to-register="() => switchMode('register')"
+      @forgot-password="() => switchMode('forgotPassword')"
+      @modify-password="() => switchMode('modifyPassword')"
+    />
+
+    <Register
+      v-else-if="currentFormMode === 'register'"
+      :key="`${edition}_${authType}_register`"
+      :edition="edition"
+      :auth-type="authType"
+      :running="running"
+      :invite-info="inviteInfo"
+      @submit="handleRegister"
+      @switch-to-login="() => switchMode('login')"
+    />
+
+    <ForgotPassword
+      v-else-if="['forgotPasswordWithSysUpgrade', 'forgotPassword'].includes(currentFormMode)"
+      :key="`${edition}_${authType}_forgotPassword`"
+      v-model="cacheFormData[currentFormMode]"
+      :running="running"
+      :title="currentFormMode === 'forgotPasswordWithSysUpgrade' ? t('auth.systemUpgradedResetPwd') : ''"
+      @submit="handleForgotPassword"
+      @switch-to-login="() => switchMode('login')"
+    />
+
+    <SetPassword
+      v-else-if="['setPasswordWithSysUpgrade', 'setPassword'].includes(currentFormMode)"
+      :key="`${edition}_${authType}_setPassword`"
+      :title="currentFormMode === 'setPasswordWithSysUpgrade' ? t('auth.systemUpgradedResetPwd') : ''"
+      :running="running"
+      :invite-info="inviteInfo"
+      @submit="handleSetPassword"
+      @back="() => {
+        ['forgotPasswordWithSysUpgrade', 'forgotPassword'].includes(preFormMode)
+          ? switchMode(preFormMode)
+          : switchMode('register')
+      }"
+    />
+
+    <ModifyPassword
+      v-else-if="['modifyPassword'].includes(currentFormMode)"
+      :key="`${edition}_${authType}_modifyPassword`"
+      :running="running"
+      :invite-info="inviteInfo"
+      :edition="edition"
+      :auth-type="authType"
+      @submit="handleModifyPassword"
+      @switch-to-login="() => switchMode('login')"
+    />
+
+    <TenantSelect
+      v-else-if="currentFormMode === 'tenantSelect'"
+      :key="`${edition}_${authType}_tenantSelect`"
+      :invite-info="inviteInfo"
+      :edition="edition"
+      :auth-type="authType"
+      :running="running"
+      :tenants="tenants"
+      @submit="handleChooseTenant"
+      @switch-to-login="() => switchMode('login')"
+    />
+  </div>
+</template>

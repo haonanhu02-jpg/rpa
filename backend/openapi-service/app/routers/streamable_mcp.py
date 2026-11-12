@@ -1,0 +1,196 @@
+import json
+
+from jsonschema import Draft202012Validator
+from mcp import types
+from mcp.server.lowlevel import Server
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+from starlette.types import Receive, Scope, Send
+
+from app.config import get_settings
+from app.database import AsyncSessionLocal
+from app.logger import get_logger
+from app.middlewares.tracing import safe_id
+from app.routers.mcp_modern import DualProtocolMCP
+from app.schemas.mcp import CONTROL_TOOLS
+from app.security.integration_rate_limit import enforce_rate_limit
+from app.security.mcp_auth import MCPAPIKeyAuthMiddleware
+from app.services.streamable_mcp import ToolsConfig
+from app.services.workflow_control import WorkflowControlError, WorkflowControlService, validate_arguments
+
+logger = get_logger(__name__)
+
+app = Server("iflyrpa-mcp")
+
+global tools_config
+tools_config = ToolsConfig()
+
+# 创建 session_manager 实例
+session_manager = StreamableHTTPSessionManager(
+    app=app,
+    event_store=None,
+    json_response=False,
+    stateless=True,
+)
+
+
+def get_authenticated_user_id(ctx) -> str:
+    """Read the user identity established by the HTTP authentication boundary."""
+    if ctx.request is None:
+        raise RuntimeError("MCP request context is unavailable")
+
+    user_id = getattr(ctx.request.state, "mcp_user_id", None)
+    if not user_id:
+        raise RuntimeError("MCP request is missing its authenticated user")
+    return str(user_id)
+
+
+def control_error(code: str, message: str, validation: dict | None = None) -> types.CallToolResult:
+    payload = {"error": {"code": code, "message": message}}
+    if code == "INVALID_ARGUMENTS" and validation is not None:
+        payload["error"]["validation"] = validation
+    return types.CallToolResult(
+        isError=True,
+        content=[types.TextContent(type="text", text=json.dumps(payload))],
+        structuredContent=payload,
+    )
+
+
+@app.call_tool(validate_input=False)
+async def call_tool(name: str, arguments: dict) -> list[types.ContentBlock] | dict | types.CallToolResult:
+    ctx = app.request_context
+    user_id = get_authenticated_user_id(ctx)
+    return await dispatch_tool(user_id, name, arguments, ctx.request_id, ctx.session)
+
+
+async def dispatch_tool(user_id, name, arguments, request_id=None, session=None):
+    from app.services.observability import event, increment
+
+    # Arbitrary dynamic tool names and RPC ids never become metric labels.
+    tool = name if name in CONTROL_TOOLS else "legacy_dynamic"
+    event("mcp_call", tool=tool, rpc_id=request_id)
+    result = await _dispatch_tool(user_id, name, arguments, request_id, session)
+    outcome = "success"
+    code = None
+    if isinstance(result, types.CallToolResult) and result.isError:
+        code = (result.structuredContent or {}).get("error", {}).get("code")
+        outcome = "busy" if code == "CLIENT_BUSY" else "error"
+    increment("astron_mcp_calls_total", outcome)
+    event(
+        "mcp_result",
+        tool=tool,
+        rpc_id=request_id,
+        outcome=outcome,
+        error_code=code,
+        execution_id=result.get("executionId") if isinstance(result, dict) else None,
+    )
+    return result
+
+
+async def _dispatch_tool(user_id, name, arguments, request_id=None, session=None):
+    if name in CONTROL_TOOLS:
+        try:
+            validate_arguments(arguments, CONTROL_TOOLS[name].inputSchema)
+            async with AsyncSessionLocal() as db:
+                service = WorkflowControlService(db)
+                if name == "astron_integration_get":
+                    payload = await service.get_integration(user_id)
+                elif name == "astron_workflow_list":
+                    payload = await service.list_workflows(
+                        user_id, arguments.get("offset", 0), arguments.get("limit", 100)
+                    )
+                elif name == "astron_workflow_get":
+                    payload = await service.get_workflow(arguments["projectId"], user_id)
+                elif name == "astron_workflow_execute":
+                    payload = await service.execute_workflow(
+                        arguments["projectId"],
+                        user_id,
+                        arguments.get("params", {}),
+                        arguments.get("version"),
+                        arguments.get("idempotencyKey"),
+                        arguments.get("executionTimeout"),
+                        arguments.get("profileRevision"),
+                        arguments.get("capabilityClass"),
+                    )
+                elif name == "astron_execution_cancel":
+                    payload = await service.cancel_execution(arguments["executionId"], user_id)
+                else:
+                    payload = await service.get_execution(arguments["executionId"], user_id)
+            # Validate before the SDK so serialization errors cannot echo results.
+            json.dumps(payload, allow_nan=False)
+            Draft202012Validator(CONTROL_TOOLS[name].outputSchema).validate(payload)
+            return payload
+        except WorkflowControlError as exc:
+            return control_error(exc.code, str(exc), exc.validation)
+        except Exception as exc:
+            # SQL/validation exception strings can contain credentials or inputs.
+            logger.error(  # noqa: TRY400 -- do not log exception text containing SQL parameters
+                "MCP control failed: tool=%s request_id=%s error_type=%s", name, safe_id(request_id), type(exc).__name__
+            )
+            return control_error(
+                "INTERNAL_ERROR", "Workflow control is unavailable; do not automatically retry a start"
+            )
+
+    # Retain schema validation for legacy dynamic tools, but avoid the SDK's
+    # validation errors, which include the original argument values.
+    for tool in await tools_config.get_tools_for_user(user_id):
+        if tool.name == name:
+            try:
+                validate_arguments(arguments, tool.inputSchema)
+            except WorkflowControlError as exc:
+                return control_error(exc.code, str(exc), exc.validation)
+            break
+
+    # 使用 ToolsConfig 执行工作流
+    result = await tools_config.execute_workflow_by_name(name, user_id, arguments)
+
+    if result["success"]:
+        # 记录成功执行
+        if session is not None:
+            await session.send_log_message(
+                level="info",
+                data=(
+                    f"Started workflow execution: execution_id={result['execution_id']}, "
+                    f"project_id={result['project_id']}"
+                ),
+                logger="workflow_execution",
+                related_request_id=request_id,
+            )
+
+        if result["message"]["code"] == "0000":
+            return [types.TextContent(type="text", text=json.dumps(result["message"], indent=2, ensure_ascii=False))]
+        else:
+            return control_error("EXECUTION_FAILED", "Workflow execution failed")
+    else:
+        return control_error("EXECUTION_UNAVAILABLE", "Workflow unavailable or execution failed")
+
+
+@app.list_tools()
+async def list_tools() -> list[types.Tool]:
+    # 获取请求上下文信息
+    ctx = app.request_context
+    user_id = get_authenticated_user_id(ctx)
+
+    # 获取用户可用的工具
+    return await available_tools(user_id)
+
+
+async def available_tools(user_id):
+    allowed_tools = await tools_config.get_tools_for_user(user_id)
+    return list(CONTROL_TOOLS.values()) + [tool for tool in allowed_tools if tool.name not in CONTROL_TOOLS]
+
+
+mcp_auth_app = MCPAPIKeyAuthMiddleware(
+    DualProtocolMCP(
+        session_manager.handle_request,
+        available_tools,
+        dispatch_tool,
+        [origin.strip() for origin in get_settings().MCP_ALLOWED_ORIGINS.split(",") if origin.strip()],
+    ),
+    tools_config.get_uid_from_raw_key,
+    allow_query_api_key=get_settings().MCP_ALLOW_QUERY_API_KEY,
+    limiter=enforce_rate_limit,
+)
+
+
+async def handle_streamable_http(scope: Scope, receive: Receive, send: Send) -> None:
+    await mcp_auth_app(scope, receive, send)

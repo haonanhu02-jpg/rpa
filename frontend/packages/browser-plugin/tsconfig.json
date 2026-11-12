@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "types": ["chrome-types/_all.d.ts"],
+    "allowJs": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noImplicitAny": false,
+    "strict": false
+  },
+  "include": ["src/*", "src/**/*"],
+  "exclude": ["node_modules", "dist", "src/3rd/*", ""],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

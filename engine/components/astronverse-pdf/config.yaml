@@ -1,0 +1,43 @@
+atomic:
+  PDF.get_pages_num:
+    icon: pdf-get-page-count
+    path:
+    - /atomicTree/document/document.PDF
+  PDF.get_pdf_text:
+    icon: pdf-extract-text
+    path:
+    - /atomicTree/document/document.PDF
+  PDF.get_pdf_images:
+    icon: pdf-extract-images
+    path:
+    - /atomicTree/document/document.PDF
+  PDF.merge_pdf_files:
+    icon: merge-pdf-files
+    path:
+    - /atomicTree/document/document.PDF
+  PDF.extract_pdf_file:
+    icon: pdf-extract-page
+    path:
+    - /atomicTree/document/document.PDF
+  PDF.extract_forms_from_pdf:
+    icon: pdf-extract-table-to-excel
+    path:
+    - /atomicTree/document/document.PDF
+  PDF.convert_pdf_to_img:
+    icon: pdf-page-to-image
+    path:
+    - /atomicTree/document/document.PDF
+  PDF.convert_img_to_pdf:
+    icon: pdf-page-to-image
+    inputList:
+    - key: image_files
+    - key: save_dir
+    - key: new_file_name
+    - key: layout_type
+    - key: new_pwd_flag
+    - key: new_pwd
+    - key: exist_handle_type
+    outputList:
+    - key: pdf_file_path
+    path:
+    - /atomicTree/document/document.PDF

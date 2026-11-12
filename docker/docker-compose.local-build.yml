@@ -1,0 +1,33 @@
+# Build this checkout instead of pulling upstream application images.
+# Run `docker compose build` before `docker compose up -d --no-build`.
+services:
+  ai-service:
+    image: astron-rpa-local/ai-service:local
+    pull_policy: never
+    build:
+      context: ..
+      dockerfile: backend/ai-service/Dockerfile
+  openapi-service:
+    image: astron-rpa-local/openapi-service:local
+    pull_policy: never
+    build:
+      context: ..
+      dockerfile: backend/openapi-service/Dockerfile
+  resource-service:
+    image: astron-rpa-local/resource-service:local
+    pull_policy: never
+    build:
+      context: ..
+      dockerfile: backend/resource-service/Dockerfile
+  robot-service:
+    image: astron-rpa-local/robot-service:local
+    pull_policy: never
+    build:
+      context: ..
+      dockerfile: backend/robot-service/Dockerfile
+  rpa-auth:
+    image: astron-rpa-local/rpa-auth:local
+    pull_policy: never
+    build:
+      context: ..
+      dockerfile: backend/rpa-auth/Dockerfile

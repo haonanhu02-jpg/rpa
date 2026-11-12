@@ -1,0 +1,5 @@
+atomic:
+  Report.print:
+    icon: log-print
+    path:
+    - /atomicTree/code

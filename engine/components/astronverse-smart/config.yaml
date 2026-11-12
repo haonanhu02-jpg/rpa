@@ -1,0 +1,4 @@
+atomic:
+  Smart.run_code:
+    icon: magic-command
+    hidden: true

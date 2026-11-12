@@ -1,0 +1,460 @@
+name: Build and Push Astron RPA Backend Services
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      push_images:
+        description: 'Push images to registry'
+        required: false
+        default: true
+        type: boolean
+      services:
+        description: 'Services to build (comma-separated: ai-service,openapi-service,resource-service,robot-service,rpa-auth)'
+        required: false
+        default: 'ai-service,openapi-service,resource-service,robot-service,rpa-auth'
+        type: string
+
+concurrency:
+  group: build-push-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
+
+env:
+  REGISTRY_GHCR: ghcr.io
+
+jobs:
+  # ============================================================================
+  # Stage 1: Project Detection and Metadata
+  # ============================================================================
+  detect-and-prepare:
+    name: 🔍 Detection & Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      should-push: ${{ steps.meta.outputs.should-push }}
+      platforms: ${{ steps.meta.outputs.platforms }}
+      services: ${{ steps.meta.outputs.services }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          # Determine version based on trigger
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            VERSION="latest"
+          fi
+
+          # Determine if should push (always true for releases, configurable for manual dispatch)
+          SHOULD_PUSH="false"
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            SHOULD_PUSH="true"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.push_images }}" == "true" ]]; then
+            SHOULD_PUSH="true"
+          fi
+
+          # Set platforms (multi-arch builds for better compatibility)
+          PLATFORMS="linux/amd64,linux/arm64"
+
+          # Determine services to build
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.services }}" ]]; then
+            SERVICES="${{ github.event.inputs.services }}"
+          else
+            SERVICES="ai-service,openapi-service,resource-service,robot-service,rpa-auth"
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "should-push=$SHOULD_PUSH" >> $GITHUB_OUTPUT
+          echo "platforms=$PLATFORMS" >> $GITHUB_OUTPUT
+          echo "services=$SERVICES" >> $GITHUB_OUTPUT
+
+          echo "🏷️ Version: $VERSION"
+          echo "📤 Should push: $SHOULD_PUSH"
+          echo "🏗️ Platforms: $PLATFORMS"
+          echo "🔧 Services: $SERVICES"
+
+  # ============================================================================
+  # Stage 2: Build Backend Services (Parallel Jobs)
+  # ============================================================================
+  build-ai-service:
+    name: 🤖 Build AI Service
+    runs-on: ubuntu-latest
+    needs: detect-and-prepare
+    if: contains(needs.detect-and-prepare.outputs.services, 'ai-service')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: needs.detect-and-prepare.outputs.should-push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_GHCR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/ai-service
+          tags: |
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
+            ${{ github.event_name == 'release' && 'type=raw,value=latest' || '' }}
+
+      - name: Build and push AI Service image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/ai-service/Dockerfile
+          platforms: ${{ needs.detect-and-prepare.outputs.platforms }}
+          push: ${{ needs.detect-and-prepare.outputs.should-push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.detect-and-prepare.outputs.version }}
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ github.run_id }}
+          cache-from: type=gha,scope=ai-service
+          cache-to: type=gha,scope=ai-service,mode=max
+
+  build-openapi-service:
+    name: 🌐 Build OpenAPI Service
+    runs-on: ubuntu-latest
+    needs: detect-and-prepare
+    if: contains(needs.detect-and-prepare.outputs.services, 'openapi-service')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: needs.detect-and-prepare.outputs.should-push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_GHCR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/openapi-service
+          tags: |
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
+            ${{ github.event_name == 'release' && 'type=raw,value=latest' || '' }}
+
+      - name: Build and push OpenAPI Service image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/openapi-service/Dockerfile
+          platforms: ${{ needs.detect-and-prepare.outputs.platforms }}
+          push: ${{ needs.detect-and-prepare.outputs.should-push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.detect-and-prepare.outputs.version }}
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ github.run_id }}
+          cache-from: type=gha,scope=openapi-service
+          cache-to: type=gha,scope=openapi-service,mode=max
+
+  build-resource-service:
+    name: 📦 Build Resource Service
+    runs-on: ubuntu-latest
+    needs: detect-and-prepare
+    if: contains(needs.detect-and-prepare.outputs.services, 'resource-service')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: needs.detect-and-prepare.outputs.should-push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_GHCR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/resource-service
+          tags: |
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
+            ${{ github.event_name == 'release' && 'type=raw,value=latest' || '' }}
+
+      - name: Build and push Resource Service image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/resource-service/Dockerfile
+          platforms: linux/amd64,linux/arm64,linux/riscv64
+          push: ${{ needs.detect-and-prepare.outputs.should-push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.detect-and-prepare.outputs.version }}
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ github.run_id }}
+          cache-from: type=gha,scope=resource-service
+          cache-to: type=gha,scope=resource-service,mode=max
+
+  build-robot-service:
+    name: 🤖 Build Robot Service
+    runs-on: ubuntu-latest
+    needs: detect-and-prepare
+    if: contains(needs.detect-and-prepare.outputs.services, 'robot-service')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: needs.detect-and-prepare.outputs.should-push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_GHCR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/robot-service
+          tags: |
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
+            ${{ github.event_name == 'release' && 'type=raw,value=latest' || '' }}
+
+      - name: Build and push Robot Service image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/robot-service/Dockerfile
+          platforms: ${{ needs.detect-and-prepare.outputs.platforms }}
+          push: ${{ needs.detect-and-prepare.outputs.should-push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.detect-and-prepare.outputs.version }}
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ github.run_id }}
+          cache-from: type=gha,scope=robot-service
+          cache-to: type=gha,scope=robot-service,mode=max
+
+  build-rpa-auth:
+    name: 🔐 Build RPA Auth
+    runs-on: ubuntu-latest
+    needs: detect-and-prepare
+    if: contains(needs.detect-and-prepare.outputs.services, 'rpa-auth')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: needs.detect-and-prepare.outputs.should-push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_GHCR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/rpa-auth
+          tags: |
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
+            ${{ github.event_name == 'release' && 'type=raw,value=latest' || '' }}
+
+      - name: Build and push RPA Auth image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/rpa-auth/Dockerfile
+          platforms: ${{ needs.detect-and-prepare.outputs.platforms }}
+          push: ${{ needs.detect-and-prepare.outputs.should-push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.detect-and-prepare.outputs.version }}
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ github.run_id }}
+          cache-from: type=gha,scope=rpa-auth
+          cache-to: type=gha,scope=rpa-auth,mode=max
+
+  # ============================================================================
+  # Stage 3: Summary and Notifications
+  # ============================================================================
+  build-summary:
+    name: 📊 Build Summary
+    runs-on: ubuntu-latest
+    needs:
+      - detect-and-prepare
+      - build-ai-service
+      - build-openapi-service
+      - build-resource-service
+      - build-robot-service
+      - build-rpa-auth
+    if: always()
+    steps:
+      - name: Generate build summary
+        run: |
+          echo "=== 🐳 astron RPA Backend Services Docker Build Summary ==="
+          echo ""
+          echo "🔍 Project Detection: ${{ needs.detect-and-prepare.result }}"
+          echo "📊 Version: ${{ needs.detect-and-prepare.outputs.version }}"
+          echo "📤 Push to Registry: ${{ needs.detect-and-prepare.outputs.should-push }}"
+          echo "🏗️ Default Target Platforms: ${{ needs.detect-and-prepare.outputs.platforms }}"
+          echo "📦 Resource Service Platforms: linux/amd64,linux/arm64,linux/riscv64"
+          echo "🔧 Services: ${{ needs.detect-and-prepare.outputs.services }}"
+          echo ""
+
+          echo "🐳 Docker Build Results:"
+          echo "  🤖 AI Service: ${{ needs.build-ai-service.result }}"
+          echo "  🌐 OpenAPI Service: ${{ needs.build-openapi-service.result }}"
+          echo "  📦 Resource Service: ${{ needs.build-resource-service.result }}"
+          echo "  🤖 Robot Service: ${{ needs.build-robot-service.result }}"
+          echo "  🔐 RPA Auth: ${{ needs.build-rpa-auth.result }}"
+          echo ""
+
+          # Count successful builds
+          SUCCESS_COUNT=0
+          TOTAL_COUNT=0
+
+          # Check each service based on what was requested
+          if [[ "${{ needs.detect-and-prepare.outputs.services }}" == *"ai-service"* ]]; then
+            TOTAL_COUNT=$((TOTAL_COUNT + 1))
+            [[ "${{ needs.build-ai-service.result }}" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+          fi
+          if [[ "${{ needs.detect-and-prepare.outputs.services }}" == *"openapi-service"* ]]; then
+            TOTAL_COUNT=$((TOTAL_COUNT + 1))
+            [[ "${{ needs.build-openapi-service.result }}" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+          fi
+          if [[ "${{ needs.detect-and-prepare.outputs.services }}" == *"resource-service"* ]]; then
+            TOTAL_COUNT=$((TOTAL_COUNT + 1))
+            [[ "${{ needs.build-resource-service.result }}" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+          fi
+          if [[ "${{ needs.detect-and-prepare.outputs.services }}" == *"robot-service"* ]]; then
+            TOTAL_COUNT=$((TOTAL_COUNT + 1))
+            [[ "${{ needs.build-robot-service.result }}" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+          fi
+          if [[ "${{ needs.detect-and-prepare.outputs.services }}" == *"rpa-auth"* ]]; then
+            TOTAL_COUNT=$((TOTAL_COUNT + 1))
+            [[ "${{ needs.build-rpa-auth.result }}" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+          fi
+
+          echo "📊 Build Success Rate: $SUCCESS_COUNT/$TOTAL_COUNT services built successfully"
+
+          if [[ "${{ needs.detect-and-prepare.outputs.should-push }}" == "true" ]]; then
+            echo ""
+            echo "🎯 Published Images:"
+            if [[ "${{ needs.build-ai-service.result }}" == "success" ]]; then
+              echo "  🤖 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/ai-service:${{ needs.detect-and-prepare.outputs.version }}"
+              if [[ "${{ github.event_name }}" == "release" ]]; then
+                echo "  🤖 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/ai-service:latest"
+              fi
+            fi
+            if [[ "${{ needs.build-openapi-service.result }}" == "success" ]]; then
+              echo "  🌐 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/openapi-service:${{ needs.detect-and-prepare.outputs.version }}"
+              if [[ "${{ github.event_name }}" == "release" ]]; then
+                echo "  🌐 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/openapi-service:latest"
+              fi
+            fi
+            if [[ "${{ needs.build-resource-service.result }}" == "success" ]]; then
+              echo "  📦 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/resource-service:${{ needs.detect-and-prepare.outputs.version }}"
+              if [[ "${{ github.event_name }}" == "release" ]]; then
+                echo "  📦 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/resource-service:latest"
+              fi
+            fi
+            if [[ "${{ needs.build-robot-service.result }}" == "success" ]]; then
+              echo "  🤖 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/robot-service:${{ needs.detect-and-prepare.outputs.version }}"
+              if [[ "${{ github.event_name }}" == "release" ]]; then
+                echo "  🤖 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/robot-service:latest"
+              fi
+            fi
+            if [[ "${{ needs.build-rpa-auth.result }}" == "success" ]]; then
+              echo "  🔐 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/rpa-auth:${{ needs.detect-and-prepare.outputs.version }}"
+              if [[ "${{ github.event_name }}" == "release" ]]; then
+                echo "  🔐 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/rpa-auth:latest"
+              fi
+            fi
+          fi
+
+          if [[ "$SUCCESS_COUNT" == "$TOTAL_COUNT" && "$TOTAL_COUNT" -gt 0 ]]; then
+            echo ""
+            echo "✅ 🎉 All requested backend services built successfully!"
+            if [[ "${{ needs.detect-and-prepare.outputs.should-push }}" == "true" ]]; then
+              echo "🚀 Images are now available in GitHub Container Registry"
+            else
+              echo "📦 Images built locally (not pushed to registry)"
+            fi
+          elif [[ "$TOTAL_COUNT" -eq 0 ]]; then
+            echo ""
+            echo "⚠️ No services were requested to be built"
+          else
+            echo ""
+            echo "❌ 🚨 Some Docker builds failed - check individual job results"
+            exit 1
+          fi
+
+          # Additional info for manual workflow dispatch
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo ""
+            echo "🔧 Manual Workflow Dispatch Summary:"
+            echo "  Trigger: ${{ github.actor }}"
+            echo "  Ref: ${{ github.ref }}"
+            echo "  Build Type: latest (based on current code)"
+            echo "  Push Images: ${{ github.event.inputs.push_images }}"
+            echo "  Services: ${{ github.event.inputs.services }}"
+          fi

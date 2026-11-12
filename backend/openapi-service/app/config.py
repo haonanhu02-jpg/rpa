@@ -1,0 +1,46 @@
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    APP_NAME: str = "RPA OpenAPI"
+    API_VERSION: str = "1.0"
+    DATABASE_URL: str
+    DATABASE_USERNAME: str
+    DATABASE_PASSWORD: str
+    REDIS_URL: str
+
+    LOG_LEVEL: str = "INFO"
+    LOG_DIR: str = "/var/log/rpa-openapi"
+    LOG_FORMAT: Literal["json", "text"] = "json"
+    MONITORING_TOKEN: str = ""
+    # All replicas must share a Redis DB when shared routing is enabled.
+    EXECUTION_ROUTING: Literal["local", "redis"] = "local"
+    INTEGRATION_RATE_PER_MINUTE: int = Field(default=0, ge=0, le=100000)
+
+    # URL credentials are disabled by default because query strings commonly
+    # appear in browser history and proxy access logs.
+    MCP_ALLOW_QUERY_API_KEY: bool = False
+    # Browser origins are denied unless a deployer explicitly allows them.
+    MCP_ALLOWED_ORIGINS: str = ""
+    # Trusted deployment file; never supplied by an external caller. Empty keeps
+    # historical callers available, but provides no community-node admission.
+    INTEGRATION_POLICY_FILE: str = ""
+    # Optional persistent binary store; blank keeps file admission disabled.
+    INTEGRATION_FILE_ROOT: str = ""
+    # Public HTTPS /openapi/files/transfer base used only by the bound Client.
+    INTEGRATION_FILE_TRANSFER_URL: str = ""
+
+    model_config = SettingsConfigDict(
+        env_file=None,
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

@@ -1,0 +1,207 @@
+name: 🔒 安全问题报告
+description: 报告安全漏洞或安全相关问题
+title: "[Security]: "
+labels: ["security", "vulnerability"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **重要提醒**：如果您发现了严重的安全漏洞，请不要在公共 Issue 中披露。
+        请直接发送邮件至 zyzhou23@iflytek.com 进行私密报告。
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: 确认清单
+      description: 在提交安全问题之前，请确认以下事项
+      options:
+        - label: 这不是一个严重的安全漏洞（严重漏洞请私密报告）
+          required: true
+        - label: 我已经搜索了现有的安全相关 Issues
+          required: true
+        - label: 我了解这个报告将是公开的
+          required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 🚨 严重程度
+      description: 评估安全问题的严重程度
+      options:
+        - 🟢 低 - 轻微安全改进建议
+        - 🟡 中 - 潜在安全风险
+        - 🟠 高 - 明确的安全问题
+        - 🔴 严重 - 请私密报告
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: 🎯 问题类别
+      description: 选择安全问题的类别
+      options:
+        - 🔐 身份认证问题
+        - 🛡️ 权限控制问题
+        - 📡 数据传输安全
+        - 💾 数据存储安全
+        - 🔍 输入验证问题
+        - 🚫 拒绝服务 (DoS)
+        - 📝 日志和监控
+        - 🔧 配置安全
+        - 📦 依赖项安全
+        - 🌐 网络安全
+        - 🔄 会话管理
+        - 📊 信息泄露
+        - 其他
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 🧩 影响组件
+      description: 选择受影响的主要组件
+      options:
+        - 前端 Web 应用
+        - 前端桌面应用
+        - 前端浏览器插件
+        - 后端 robot-service
+        - 后端 ai-service
+        - 后端 openapi-service
+        - 后端 resource-service
+        - RPA 引擎核心
+        - 数据库层
+        - API 接口
+        - 身份认证服务
+        - 文件处理
+        - 网络通信
+        - Docker 配置
+        - 整个系统
+        - 不确定
+      default: 15
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 问题描述
+      description: 详细描述安全问题或风险
+      placeholder: |
+        请描述：
+        - 发现的安全问题或风险
+        - 可能的影响和后果
+        - 问题的具体表现
+        
+        注意：请不要包含敏感信息或具体的漏洞利用方法
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 🔄 重现步骤
+      description: 如何重现这个安全问题（请避免包含具体的攻击方法）
+      placeholder: |
+        一般性的重现步骤：
+        1. 在...环境下
+        2. 执行...操作
+        3. 观察到...现象
+        
+        注意：请提供安全的重现方法，不要包含实际的攻击代码
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: 💥 潜在影响
+      description: 这个安全问题可能造成什么影响？
+      placeholder: |
+        可能的影响：
+        - 数据泄露风险
+        - 系统可用性影响
+        - 权限提升风险
+        - 其他安全风险
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: 🖥️ 影响环境
+      description: 这个问题影响哪些环境？
+      options:
+        - 所有环境
+        - 生产环境
+        - 测试环境
+        - 开发环境
+        - 特定配置环境
+        - 不确定
+      default: 0
+
+  - type: input
+    id: version
+    attributes:
+      label: 📋 版本信息
+      description: 发现问题的版本
+      placeholder: 例如：v1.0.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: mitigation
+    attributes:
+      label: 🛠️ 临时缓解措施
+      description: 是否有临时的缓解或防护措施？
+      placeholder: |
+        可能的缓解措施：
+        - 配置调整
+        - 权限限制
+        - 网络隔离
+        - 其他防护措施
+
+  - type: textarea
+    id: references
+    attributes:
+      label: 📚 参考资料
+      description: 相关的安全标准、CVE 编号或参考文档
+      placeholder: |
+        - 相关 CVE 编号
+        - 安全标准参考
+        - 技术文档链接
+        - 类似问题的报告
+
+  - type: checkboxes
+    id: disclosure
+    attributes:
+      label: 📢 披露意愿
+      description: 关于问题披露的意愿
+      options:
+        - label: 我同意在问题修复后公开讨论
+          required: false
+        - label: 我希望在安全公告中被提及（如适用）
+          required: false
+        - label: 我可以协助验证修复方案
+          required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 📝 补充信息
+      description: 任何其他有助于理解和解决问题的信息
+      placeholder: |
+        其他相关信息：
+        - 发现过程
+        - 测试环境详情
+        - 相关配置信息（请移除敏感内容）
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        
+        **再次提醒**：
+        - 🔴 严重安全漏洞请发送邮件至 zyzhou23@iflytek.com
+        - ⚠️ 请不要在公共 Issue 中包含具体的攻击方法
+        - 🤝 感谢您帮助改善 AstronRPA 的安全性

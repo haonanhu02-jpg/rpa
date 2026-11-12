@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iframe MouseMove 事件穿透诊断工具</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #333;
+    }
+    .test-section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .iframe-container {
+      position: relative;
+      border: 3px solid #4CAF50;
+      margin: 20px 0;
+      padding: 10px;
+      background: #e8f5e9;
+    }
+    .iframe-container.outer {
+      border-color: #2196F3;
+      background: #e3f2fd;
+    }
+    iframe {
+      width: 100%;
+      height: 300px;
+      border: 2px solid #FF9800;
+      background: white;
+    }
+    .label {
+      font-weight: bold;
+      color: #666;
+      margin-bottom: 10px;
+    }
+    .log-panel {
+      background: #263238;
+      color: #aed581;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin: 10px 0;
+    }
+    .log-entry {
+      margin: 2px 0;
+      padding: 2px 0;
+    }
+    .log-outer {
+      color: #64b5f6;
+    }
+    .log-inner {
+      color: #81c784;
+    }
+    .log-synthetic {
+      color: #ff8a65;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    button.danger {
+      background: #f44336;
+    }
+    button.danger:hover {
+      background: #da190b;
+    }
+    .info-box {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .test-modes {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .test-mode {
+      padding: 15px;
+      background: #f9f9f9;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .test-mode:hover {
+      border-color: #4CAF50;
+      transform: translateY(-2px);
+    }
+    .test-mode.active {
+      border-color: #4CAF50;
+      background: #e8f5e9;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Iframe MouseMove 事件穿透诊断工具</h1>
+
+    <div class="info-box">
+      <strong>使用说明：</strong>
+      <ol>
+        <li>选择一个测试模式</li>
+        <li>在iframe区域移动鼠标</li>
+        <li>观察日志面板中的输出</li>
+        <li>如果外层和内层都有日志，说明发生了"穿透"</li>
+      </ol>
+    </div>
+
+    <div class="test-section">
+      <h2>选择测试模式</h2>
+      <div class="test-modes">
+        <div class="test-mode" data-mode="normal">
+          <h3>✅ 正常模式</h3>
+          <p>不做任何特殊处理，测试默认行为</p>
+        </div>
+        <div class="test-mode" data-mode="postmessage">
+          <h3>📨 PostMessage转发</h3>
+          <p>模拟客户代码通过postMessage转发事件</p>
+        </div>
+        <div class="test-mode" data-mode="pointer-events">
+          <h3>👆 Pointer-Events穿透</h3>
+          <p>iframe设置pointer-events: none</p>
+        </div>
+        <div class="test-mode" data-mode="synthetic">
+          <h3>🔄 合成事件</h3>
+          <p>在外层手动dispatch合成事件</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="test-section">
+      <h2>日志面板</h2>
+      <button onclick="clearLogs()">清空日志</button>
+      <button onclick="toggleDebug()" class="danger">启用调试模式</button>
+      <div class="log-panel" id="logPanel"></div>
+    </div>
+
+    <div class="test-section">
+      <div class="iframe-container outer">
+        <div class="label">外层页面（当前页面）</div>
+        <p>在这里移动鼠标应该只触发外层事件</p>
+        <div style="height: 100px; background: #bbdefb; padding: 20px;">
+          外层元素区域
+        </div>
+
+        <div class="iframe-container">
+          <div class="label">内层 iframe</div>
+          <iframe id="testIframe" src="about:blank"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentMode = 'normal';
+    let debugMode = false;
+    let outerMoveCount = 0;
+    let innerMoveCount = 0;
+
+    // 日志函数
+    function log(message, type = 'info') {
+      const logPanel = document.getElementById('logPanel');
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = `log-entry log-${type}`;
+      entry.textContent = `[${time}] ${message}`;
+      logPanel.appendChild(entry);
+      logPanel.scrollTop = logPanel.scrollHeight;
+    }
+
+    function clearLogs() {
+      document.getElementById('logPanel').innerHTML = '';
+      outerMoveCount = 0;
+      innerMoveCount = 0;
+    }
+
+    function toggleDebug() {
+      debugMode = !debugMode;
+      event.target.textContent = debugMode ? '禁用调试模式' : '启用调试模式';
+      log(debugMode ? '调试模式已启用' : '调试模式已禁用', 'info');
+    }
+
+    // 外层mousemove监听
+    document.addEventListener('mousemove', (event) => {
+      outerMoveCount++;
+      if (debugMode && outerMoveCount % 20 === 0) {
+        log(`外层 mousemove (#${outerMoveCount}): isTrusted=${event.isTrusted}, target=${event.target.tagName}`, 'outer');
+      }
+      if (!event.isTrusted) {
+        log(`⚠️ 外层检测到合成事件！`, 'synthetic');
+      }
+    }, true);
+
+    // 模式切换
+    document.querySelectorAll('.test-mode').forEach(mode => {
+      mode.addEventListener('click', function() {
+        document.querySelectorAll('.test-mode').forEach(m => m.classList.remove('active'));
+        this.classList.add('active');
+        currentMode = this.dataset.mode;
+        setupTestMode(currentMode);
+      });
+    });
+
+    // 设置测试模式
+    function setupTestMode(mode) {
+      clearLogs();
+      const iframe = document.getElementById('testIframe');
+
+      log(`切换到测试模式: ${mode}`, 'info');
+
+      // 重置iframe
+      iframe.style.pointerEvents = '';
+
+      // 加载iframe内容
+      const iframeContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { margin: 0; padding: 20px; background: #fff; font-family: Arial; }
+            .inner-area {
+              background: #c8e6c9;
+              padding: 40px;
+              text-align: center;
+              border: 2px dashed #4CAF50;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="inner-area">
+            <h3>内层 iframe 内容</h3>
+            <p>在这里移动鼠标</p>
+            <div id="innerLog"></div>
+          </div>
+          <script>
+            let innerCount = 0;
+            document.addEventListener('mousemove', (event) => {
+              innerCount++;
+              const innerLog = document.getElementById('innerLog');
+              if (innerCount % 20 === 0) {
+                innerLog.textContent = '内层事件触发次数: ' + innerCount;
+
+                // 向父窗口报告
+                window.parent.postMessage({
+                  type: 'inner-log',
+                  count: innerCount,
+                  isTrusted: event.isTrusted
+                }, '*');
+              }
+
+              // 模式特定行为
+              const mode = '${mode}';
+              if (mode === 'postmessage') {
+                // 模拟客户代码转发事件
+                window.parent.postMessage({
+                  type: 'iframe-mousemove-forward',
+                  x: event.clientX,
+                  y: event.clientY,
+                  targetTag: event.target.tagName
+                }, '*');
+              }
+            }, true);
+          </script>
+        </body>
+        </html>
+      `;
+
+      iframe.srcdoc = iframeContent;
+
+      // 模式特定设置
+      if (mode === 'pointer-events') {
+        iframe.style.pointerEvents = 'none';
+        log('✅ iframe 已设置 pointer-events: none', 'info');
+      }
+
+      if (mode === 'postmessage') {
+        log('✅ 内层iframe将转发所有mousemove事件', 'info');
+      }
+
+      if (mode === 'synthetic') {
+        log('✅ 外层将接收并重新dispatch事件', 'info');
+      }
+    }
+
+    // 监听来自iframe的消息
+    window.addEventListener('message', (event) => {
+      const data = event.data;
+
+      if (data.type === 'inner-log') {
+        log(`内层 mousemove (#${data.count}): isTrusted=${data.isTrusted}`, 'inner');
+      }
+
+      if (data.type === 'iframe-mousemove-forward') {
+        log(`📨 收到内层转发的事件: x=${data.x}, y=${data.y}, target=${data.targetTag}`, 'synthetic');
+
+        if (currentMode === 'synthetic') {
+          // 在外层重新dispatch事件
+          const syntheticEvent = new MouseEvent('mousemove', {
+            clientX: data.x,
+            clientY: data.y,
+            bubbles: true,
+            cancelable: true
+          });
+          document.dispatchEvent(syntheticEvent);
+          log(`🔄 在外层重新dispatch了合成事件`, 'synthetic');
+        }
+      }
+    });
+
+    // 初始化
+    log('诊断工具已加载，请选择测试模式', 'info');
+  </script>
+</body>
+</html>

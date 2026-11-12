@@ -1,0 +1,112 @@
+<script setup lang="ts">
+import { DeleteOutlined } from '@ant-design/icons-vue'
+import { NiceModal } from '@rpa/components'
+import { message } from 'ant-design-vue'
+import type { ColumnsType } from 'ant-design-vue/es/table'
+import dayjs from 'dayjs'
+import { useTranslation } from 'i18next-vue'
+import { h, reactive, ref } from 'vue'
+
+import { deleteAPI, getApis } from '@/api/setting'
+import GlobalModal from '@/components/GlobalModal'
+import { NormalTable } from '@/components/NormalTable'
+import type { TableOption } from '@/components/NormalTable'
+
+import { NewApiModal } from './modals'
+
+interface DataType {
+  id: number | string
+  api_key: string
+  name: string
+  createTime: string
+  oper: string
+}
+
+const { t } = useTranslation()
+const currTableRef = ref(null)
+
+const columns: ColumnsType = [
+  {
+    title: t('name'),
+    dataIndex: 'name',
+    key: 'name',
+    align: 'left',
+    width: 80,
+    ellipsis: true,
+  },
+  {
+    title: 'Key',
+    dataIndex: 'api_key',
+    key: 'api_key',
+    align: 'left',
+    ellipsis: true,
+  },
+  {
+    title: t('common.createDate'),
+    dataIndex: 'createTime',
+    key: 'createTime',
+    width: 120,
+    ellipsis: true,
+    customRender: ({ record }) => dayjs(record.createTime).format('YYYY-MM-DD'),
+  },
+  {
+    title: t('operate'),
+    dataIndex: 'oper',
+    key: 'oper',
+    align: 'center',
+    width: 60,
+    customRender: ({ record }) => h(DeleteOutlined, { onClick: () => deleteApiKey(record) }),
+  },
+]
+
+const tableOption = reactive<TableOption>({
+  refresh: true,
+  getData: getApis,
+  buttonListAlign: 'right',
+  headerClass: '!justify-end',
+  buttonList: [{
+    label: t('settingCenter.apiKeyManage.createApiKey'),
+    clickFn: addApiKey,
+    type: 'primary',
+    hidden: false,
+  }],
+  tableProps: {
+    columns,
+    rowKey: 'id',
+    scroll: { y: 180 },
+    size: 'small',
+  },
+  params: {},
+})
+
+function refreshHomeTable() {
+  currTableRef.value?.fetchTableData()
+}
+
+function refreshWithDelete(count: number = 1) {
+  currTableRef.value?.refreshWithDelete(count)
+}
+
+function addApiKey() {
+  NiceModal.show(NewApiModal, {
+    onRefresh: () => refreshHomeTable(),
+  })
+}
+
+function deleteApiKey(row: DataType) {
+  GlobalModal.confirm({
+    title: t('settingCenter.apiKeyManage.deleteApiKeyConfirm'),
+    onOk: async () => {
+      await deleteAPI({ id: row.id })
+      message.success(t('deleteSuccess'))
+      refreshWithDelete()
+    },
+    centered: true,
+    keyboard: false,
+  })
+}
+</script>
+
+<template>
+  <NormalTable ref="currTableRef" :option="tableOption" />
+</template>

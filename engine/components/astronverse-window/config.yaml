@@ -1,0 +1,18 @@
+atomic:
+  Window.exist:
+    icon: check-window-exists
+    path:
+    - /atomicTree/code/if
+    - /atomicTree/desktop/desktop.window
+  Window.top:
+    icon: pin-window
+    path:
+    - /atomicTree/desktop/desktop.window
+  Window.close:
+    icon: close-window
+    path:
+    - /atomicTree/desktop/desktop.window
+  Window.set_size:
+    icon: resize-window
+    path:
+    - /atomicTree/desktop/desktop.window

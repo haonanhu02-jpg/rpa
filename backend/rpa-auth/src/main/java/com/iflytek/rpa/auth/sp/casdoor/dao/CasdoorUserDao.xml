@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.iflytek.rpa.auth.sp.casdoor.dao.CasdoorUserDao">
+
+    <!-- 根据姓名模糊查询用户 -->
+    <select id="searchUserByName" resultType="org.casbin.casdoor.entity.User">
+        SELECT
+            u.id,
+            u.name,
+            u.display_name as displayName,
+            u.phone,
+            u.email,
+            u.created_time as createdTime,
+            u.updated_time as updatedTime,
+            u.is_forbidden as isForbidden,
+            u.owner,
+            u.email_verified as emailVerified,
+            u.avatar,
+            u.permanent_avatar as permanentAvatar,
+            u.first_name as firstName,
+            u.last_name as lastName,
+            u.location,
+            u.id_card as idCard,
+            u.birthday
+        FROM ${databaseName}.`user` u
+        WHERE u.is_deleted = 0
+        <if test="owner != null and owner != ''">
+            AND u.owner = #{owner}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                u.display_name LIKE CONCAT('%', #{keyword}, '%') ESCAPE '!'
+                OR u.name LIKE CONCAT('%', #{keyword}, '%') ESCAPE '!'
+            )
+        </if>
+        ORDER BY u.created_time DESC
+        LIMIT 1000
+    </select>
+
+    <!-- 根据手机号模糊查询用户 -->
+    <select id="searchUserByPhone" resultType="org.casbin.casdoor.entity.User">
+        SELECT
+            u.id,
+            u.name,
+            u.display_name as displayName,
+            u.phone,
+            u.email,
+            u.created_time as createdTime,
+            u.updated_time as updatedTime,
+            u.is_forbidden as isForbidden,
+            u.owner,
+            u.email_verified as emailVerified,
+            u.avatar,
+            u.permanent_avatar as permanentAvatar,
+            u.first_name as firstName,
+            u.last_name as lastName,
+            u.location,
+            u.id_card as idCard,
+            u.birthday
+        FROM ${databaseName}.`user` u
+        WHERE u.is_deleted = 0
+        <if test="owner != null and owner != ''">
+            AND u.owner = #{owner}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND u.phone LIKE CONCAT('%', #{keyword}, '%') ESCAPE '!'
+        </if>
+        ORDER BY u.created_time DESC
+        LIMIT 1000
+    </select>
+
+    <!-- 根据姓名或手机号模糊查询用户 -->
+    <select id="searchUserByNameOrPhone" resultType="org.casbin.casdoor.entity.User">
+        SELECT
+            u.id,
+            u.name,
+            u.display_name as displayName,
+            u.phone,
+            u.email,
+            u.created_time as createdTime,
+            u.updated_time as updatedTime,
+            u.is_forbidden as isForbidden,
+            u.owner,
+            u.email_verified as emailVerified,
+            u.avatar,
+            u.permanent_avatar as permanentAvatar,
+            u.first_name as firstName,
+            u.last_name as lastName,
+            u.location,
+            u.id_card as idCard,
+            u.birthday
+        FROM ${databaseName}.`user` u
+        WHERE u.is_deleted = 0
+        <if test="owner != null and owner != ''">
+            AND u.owner = #{owner}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                u.display_name LIKE CONCAT('%', #{keyword}, '%') ESCAPE '!'
+                OR u.name LIKE CONCAT('%', #{keyword}, '%') ESCAPE '!'
+                OR u.phone LIKE CONCAT('%', #{keyword}, '%') ESCAPE '!'
+            )
+        </if>
+        ORDER BY u.created_time DESC
+        LIMIT 1000
+    </select>
+
+    <!-- 根据用户ID列表查询租户用户列表 -->
+    <select id="getMarketTenantUserList" resultType="com.iflytek.rpa.auth.core.entity.TenantUser">
+        SELECT
+            u.owner tenantId,
+            u.id userId
+        FROM
+            ${databaseName}.`user` u
+        WHERE
+            u.is_deleted = 0
+            AND u.owner = #{dto.tenantId}
+            AND u.id IN
+            <foreach collection="dto.userIdList" item="userId" open="(" close=")" separator=",">
+                #{userId}
+            </foreach>
+    </select>
+
+</mapper>
+

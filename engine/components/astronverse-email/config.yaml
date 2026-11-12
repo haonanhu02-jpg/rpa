@@ -1,0 +1,9 @@
+atomic:
+  Email.send_email:
+    icon: send-email
+    path:
+    - /atomicTree/network/email
+  Email.receive_email:
+    icon: receive-email
+    path:
+    - /atomicTree/network/email

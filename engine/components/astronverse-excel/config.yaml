@@ -1,0 +1,142 @@
+atomic:
+  Excel.open_excel:
+    icon: excel-open-file
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.get_excel:
+    icon: get-open-excel-objects
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.create_excel:
+    icon: excel-create-file
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.save_excel:
+    icon: excel-save-file
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.close_excel:
+    icon: excel-close-file
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.edit_excel:
+    icon: excel-write-file
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.read_excel:
+    icon: excel-read-content
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.design_cell_type:
+    icon: excel-set-cell-format
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.copy_excel:
+    icon: excel-copy-cell
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.paste_excel:
+    icon: excel-paste-cell
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.delete_excel_cell:
+    icon: excel-delete-cell
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.clear_excel_content:
+    icon: excel-clear-range
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.insert_excel_row_or_column:
+    icon: excel-insert-row-column
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.get_excel_row_num:
+    icon: excel-get-row-count
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.get_excel_col_num:
+    icon: excel-get-column-count
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.get_excel_first_available_row:
+    icon: excel-get-first-available-row
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.get_excel_first_available_col:
+    icon: excel-get-first-available-column
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.loop_excel_content:
+    icon: excel-loop-content
+    path:
+    - /atomicTree/code/for
+    - /atomicTree/document/document.Excel
+  Excel.excel_get_cell_color:
+    icon: excel-get-cell-color
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.merge_split_excel_cell:
+    icon: excel-split-cell
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.add_excel_worksheet:
+    icon: add-excel-worksheet
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.move_excel_worksheet:
+    icon: excel-move-sheet
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.delete_excel_worksheet:
+    icon: excel-delete-sheet
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.rename_excel_worksheet:
+    icon: excel-rename-sheet
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.copy_excel_worksheet:
+    icon: excel-copy-sheet
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.get_excel_worksheet_names:
+    icon: excel-get-sheet-names
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.search_and_replace_excel_content:
+    icon: excel-find-replace
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.insert_pic:
+    icon: excel-insert-image
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.insert_formula:
+    icon: excel-insert-formula
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.create_excel_comment:
+    icon: excel-create-comment
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.delete_excel_comment:
+    icon: excel-delete-comment
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.excel_text_to_number:
+    icon: excel-text-to-number
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.excel_number_to_text:
+    icon: excel-number-to-text
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.excel_set_col_width:
+    icon: excel-set-column-width
+    path:
+    - /atomicTree/document/document.Excel
+  Excel.excel_set_row_height:
+    icon: excel-set-row-height
+    path:
+    - /atomicTree/document/document.Excel

@@ -1,0 +1,14 @@
+node_modules
+dist
+rpa-extension
+coverage
+
+*.zip
+*.crx
+*.pem
+*.env
+*.env.local
+
+.vscode
+.idea
+public/manifest.json

@@ -1,0 +1,130 @@
+import type { ITableResponse } from '@/types/normalTable'
+
+import http from './http'
+
+// 根据id和version获取原子能力的具体信息
+export async function getAbilityInfo(atomList: { key: string, version: string }[]): Promise<string[]> {
+  const res = await http.post<any[]>('/core/meta/list', { keys: atomList.map(i => i.key) })
+  const data = res.data || []
+  return data.map((atom: any) => atom.atomContent)
+}
+
+// 获取原子能力左侧菜单数据
+export async function getAtomsMeta(): Promise<RPA.AtomMetaData> {
+  const res = await http.post('/core/meta/tree')
+  return JSON.parse(res.data)
+}
+
+// 获取扩展组件左侧菜单数据
+export async function getModuleMeta(): Promise<RPA.AtomTreeNode[]> {
+  const res = await http.post('/core/meta/tree')
+  const data = JSON.parse(res.data)
+  return data.atomicTreeExtend ?? []
+}
+
+export function getTreeByParentKey(_parentKey: string) {
+  // The local Engine no longer exposes the legacy parent-key tree endpoint.
+  return Promise.resolve({ data: [] as string[] })
+}
+
+export async function getNewAtomDesc(key: string): Promise<{ data: string }> {
+  const res = await http.post<any[]>('/core/meta/list', { keys: [key] })
+  const atom = res.data && res.data.length > 0 ? res.data[0] : {}
+  const { atomContent = '{}' } = atom as any
+  return { data: atomContent }
+}
+
+/**
+ * 添加收藏
+ */
+export function addFavorite(data: { atomKey: string }) {
+  return http.get('/api/robot/atomLike/create', data)
+}
+/**
+ * 取消收藏
+ */
+export function removeFavorite(data: { likeId: string }) {
+  return http.get('/api/robot/atomLike/cancel', data)
+}
+/**
+ * 获取收藏列表
+ */
+export async function getFavoriteList() {
+  const res = await http.get<RPA.AtomTreeNode[]>('/api/robot/atomLike/list')
+  return res.data ?? []
+}
+
+/**
+ * 获取组件列表
+ */
+export async function getComponentList(data: {
+  robotId: string
+  version?: number
+}) {
+  const res = await http.post<RPA.ComponentManageItem[]>('/api/robot/component/editing/list', { ...data, mode: 'EDIT_PAGE' })
+  return res.data ?? []
+}
+
+/**
+ * 获取原子能力的配置参数
+ */
+export async function getConfigParams(params: {
+  robotId: string
+  robotVersion?: string | number
+  processId?: string
+  moduleId?: string
+  mode?: string
+}) {
+  const res = await http.post<RPA.ConfigParamData[]>('/api/robot/param/all', params)
+  return res.data
+}
+
+/**
+ * 新增原子能力的配置参数
+ */
+export async function createConfigParam(data: RPA.CreateConfigParamData) {
+  const res = await http.post<string>('/api/robot/param/add', data)
+  return res.data
+}
+
+/**
+ * 删除原子能力的配置参数
+ * @param id 参数id
+ */
+export function deleteConfigParam(id: string) {
+  return http.post(`/api/robot/param/delete?id=${id}`)
+}
+
+/**
+ * 更新原子能力的配置参数
+ * @param data RPA.ConfigParamData
+ */
+export function updateConfigParam(data: RPA.ConfigParamData) {
+  return http.post('/api/robot/param/update', data)
+}
+
+/**
+ * 获取远程共享变量
+ */
+export async function getRemoteParams<T>() {
+  const res = await http.get<T[]>('/api/robot/robot-shared-var/get-shared-var')
+  return res.data || []
+}
+
+/**
+ * 获取卓越中心文件管理共享文件列表
+ */
+export async function getRemoteFiles(data?: { pageSize?: number, fileName?: string }) {
+  const res = await http.post<ITableResponse<RPA.SharedFileType>>('/api/robot/robot-shared-file/page', data)
+  return res.data || { records: [], total: 0 }
+}
+
+// This AI endpoint returns a bare payload rather than the robot service envelope.
+export async function getSemanticChoiceCapabilities(): Promise<unknown> {
+  const response = await http.get('/api/rpa-ai-service/v1/decision/capabilities', undefined, {
+    toast: false,
+    timeout: 5000,
+    transformResponse: [(data: string) => ({ code: '0000', data: JSON.parse(data) })],
+  })
+  return response.data
+}

@@ -1,0 +1,303 @@
+name: ⚡ 性能问题
+description: 报告性能问题或建议性能优化
+title: "[Performance]: "
+labels: ["performance", "optimization"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢您帮助改进 AstronRPA 的性能！性能优化对用户体验至关重要。
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: 确认清单
+      description: 在提交性能问题之前，请确认以下事项
+      options:
+        - label: 我已经搜索了现有的性能相关 Issues
+          required: true
+        - label: 我已经尝试了基本的性能优化措施
+          required: true
+        - label: 我已经收集了相关的性能数据
+          required: false
+
+  - type: dropdown
+    id: performance_type
+    attributes:
+      label: 🎯 性能问题类型
+      description: 选择性能问题的类型
+      options:
+        - 🐌 响应速度慢
+        - 💾 内存使用过高
+        - 🔥 CPU 使用率高
+        - 🗄️ 磁盘 I/O 瓶颈
+        - 🌐 网络延迟问题
+        - 📊 数据库查询慢
+        - ⏰ 超时问题
+        - 🔄 并发性能问题
+        - 📈 可扩展性问题
+        - 🚀 启动时间长
+        - 🔋 资源泄露
+        - 其他
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 🧩 影响组件
+      description: 选择性能问题影响的主要组件
+      options:
+        - 前端 Web 应用
+        - 前端桌面应用
+        - 前端浏览器插件
+        - 后端 robot-service
+        - 后端 ai-service
+        - 后端 openapi-service
+        - 后端 resource-service
+        - RPA 引擎核心
+        - RPA 组件执行
+        - 数据库操作
+        - 文件处理
+        - 网络通信
+        - 图像处理
+        - AI 计算
+        - 整个系统
+        - 不确定
+      default: 15
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 问题描述
+      description: 详细描述性能问题
+      placeholder: |
+        请描述：
+        - 具体的性能问题是什么？
+        - 在什么情况下出现？
+        - 对用户的影响是什么？
+        - 相比之前是否有性能下降？
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 🔄 重现步骤
+      description: 如何重现这个性能问题
+      placeholder: |
+        重现步骤：
+        1. 准备...数据/环境
+        2. 执行...操作
+        3. 观察性能表现
+        4. 测量...指标
+    validations:
+      required: true
+
+  - type: textarea
+    id: metrics
+    attributes:
+      label: 📊 性能指标
+      description: 提供具体的性能数据和指标
+      placeholder: |
+        性能数据：
+        - 响应时间：...ms/s
+        - 内存使用：...MB/GB
+        - CPU 使用率：...%
+        - 磁盘 I/O：...MB/s
+        - 网络延迟：...ms
+        - 处理速度：...ops/s
+        - 错误率：...%
+        
+        对比数据（如有）：
+        - 期望值：...
+        - 历史表现：...
+        - 基准测试：...
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 🚨 严重程度
+      description: 性能问题的严重程度
+      options:
+        - 🔥 严重 - 系统几乎不可用
+        - 🔶 高 - 严重影响用户体验
+        - 🔷 中 - 明显的性能下降
+        - 🔹 低 - 轻微的性能影响
+      default: 2
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: 🖥️ 测试环境
+      description: 在哪个环境中观察到性能问题？
+      options:
+        - 生产环境
+        - 测试环境
+        - 开发环境
+        - 本地环境
+        - Docker 容器
+        - 多个环境
+      default: 0
+
+  - type: textarea
+    id: system_info
+    attributes:
+      label: 💻 系统信息
+      description: 提供系统配置信息
+      placeholder: |
+        硬件配置：
+        - CPU：...
+        - 内存：...GB
+        - 磁盘：...（类型、大小）
+        - 网络：...
+
+        软件环境：
+        - 操作系统：...
+        - Python 版本：...
+        - Java 版本：...
+        - 数据库版本：...
+        - Docker 版本：...（如适用）
+
+  - type: input
+    id: version
+    attributes:
+      label: 📋 版本信息
+      description: 发现性能问题的版本
+      placeholder: 例如：v1.0.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: data_scale
+    attributes:
+      label: 📏 数据规模
+      description: 描述数据规模和负载情况
+      placeholder: |
+        数据规模：
+        - 处理的记录数：...
+        - 文件大小：...MB/GB
+        - 并发用户数：...
+        - 任务队列长度：...
+        - 数据库记录数：...
+
+        负载情况：
+        - 高峰期负载：...
+        - 平均负载：...
+        - 测试负载：...
+
+  - type: textarea
+    id: profiling
+    attributes:
+      label: 🔍 性能分析
+      description: 如果进行了性能分析，请提供结果
+      placeholder: |
+        性能分析结果：
+        - 热点函数/方法：...
+        - 瓶颈位置：...
+        - 资源使用分析：...
+        - 慢查询日志：...
+        
+        使用的分析工具：
+        - 工具名称：...
+        - 分析报告：...（可贴图或链接）
+
+  - type: textarea
+    id: comparison
+    attributes:
+      label: 📈 性能对比
+      description: 与其他版本、系统或预期的性能对比
+      placeholder: |
+        性能对比：
+        - 历史版本表现：...
+        - 其他类似系统：...
+        - 理论预期性能：...
+        - 行业标准：...
+
+  - type: textarea
+    id: optimization_attempts
+    attributes:
+      label: 🔧 尝试的优化
+      description: 您已经尝试过的优化措施
+      placeholder: |
+        已尝试的优化：
+        - 配置调整：...
+        - 硬件升级：...
+        - 代码优化：...
+        - 数据库优化：...
+        
+        结果：
+        - 有效果的措施：...
+        - 无效果的措施：...
+
+  - type: textarea
+    id: suggestions
+    attributes:
+      label: 💡 优化建议
+      description: 您认为可能的优化方向或建议
+      placeholder: |
+        可能的优化方向：
+        - 算法优化：...
+        - 缓存策略：...
+        - 并发优化：...
+        - 架构调整：...
+        - 资源优化：...
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 📋 相关日志
+      description: 性能问题相关的日志信息
+      placeholder: |
+        ```
+        相关日志内容...
+        
+        包括但不限于：
+        - 应用日志
+        - 系统性能日志
+        - 数据库慢查询日志
+        - 错误日志
+        ```
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 📸 性能监控截图
+      description: 性能监控工具的截图或图表
+      placeholder: |
+        请提供：
+        - 系统监控截图
+        - 性能分析图表
+        - 资源使用趋势图
+        - 响应时间图表
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: 🤝 贡献意愿
+      description: 您是否愿意参与性能优化工作？
+      options:
+        - label: 我愿意提供更多测试数据
+          required: false
+        - label: 我可以协助测试优化方案
+          required: false
+        - label: 我愿意提交性能优化的 PR
+          required: false
+        - label: 我可以提供性能测试环境
+          required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 📝 补充信息
+      description: 任何其他有助于性能优化的信息
+      placeholder: |
+        其他相关信息：
+        - 业务背景
+        - 特殊需求
+        - 限制条件
+        - 优化目标

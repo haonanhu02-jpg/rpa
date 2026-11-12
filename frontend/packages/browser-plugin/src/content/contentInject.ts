@@ -1,0 +1,1226 @@
+import { DEEP_SEARCH_TRIGGER, ELEMENT_SEARCH_TRIGGER, ErrorMessage, FRAME_ELEMENT_TAGS, HIGH_LIGHT_BORDER, HIGH_LIGHT_DURATION, SCROLL_DELAY, SCROLL_TIMES, StatusCode } from '../common/constant'
+import { UrlMatcher, UrlMatchLevel } from '../common/urlMatcher'
+import { Utils } from '../common/utils'
+import { t } from '../i18n/index'
+
+import { similarBatch, similarListBatch, tableColumnDataBatch, tableDataBatch, tableDataFormatterProcure, tableHeaderBatch } from './dataBatch'
+import {
+  filterVisibleElements,
+  findElementByPoint,
+  getBoundingClientRect,
+  getChildElementByType,
+  getCoveredTopElement,
+  getElementByElementInfo,
+  getElementBySelector,
+  getElementByXPath,
+  getElementDirectory,
+  getElementsByXpath,
+  getFrameContentRect,
+  getNthCssSelector,
+  getSiblingElementByType,
+  getText,
+  getWindowFrames,
+  getXpath,
+  highlightElements,
+  isTable,
+  shadowRootElement,
+} from './element'
+import { currentFrameInfo, loadIframe, tagFrames } from './iframe'
+import { keepServiceWorkerAlive, notifyContentLoaded, sendElementData } from './message'
+import { elementChangeWatcher } from './watcher'
+
+let timeoutId
+let deepTimeoutId
+let highlightTime = 0
+const frontCheckEnabled = false
+let deepSearchEnabled = false
+/**
+ * Handles a mouse event to locate and process a DOM element at the event's coordinates.
+ *
+ * This function attempts to find the element under the mouse pointer using `findElementByPoint`.
+ * If no element is found, it falls back to the event's target. If the element contains a shadow root,
+ * it further searches within the shadow DOM using `shadowRootElement`. The function then formats
+ * the element's information and sends it for further processing, optionally highlighting the element.
+ *
+ * @param ev - The mouse event containing the coordinates to search for the element.
+ * @param docu - The document or shadow root context in which to search for the element.
+ * @param _extra - Additional data (unused in this function).
+ */
+function findElement(ev: MouseEvent, docu: Document | ShadowRoot, _extra) {
+  if (typeof findElementByPoint !== 'function') {
+    return
+  }
+  const { clientX: x, clientY: y } = ev
+  let element = findElementByPoint({ x, y }, deepSearchEnabled, docu)
+  if (!element) {
+    element = ev.target as HTMLElement
+  }
+  let shadowPath = ''
+  let shadowDirs: ElementDirectory[] = []
+
+  if (element?.shadowRoot) {
+    const shadowRoot = element?.shadowRoot
+    const shadowElementPath = getNthCssSelector(element)
+    const result = shadowRootElement({ x, y }, shadowRoot, shadowElementPath)
+    if (result) {
+      element = result.element
+      shadowPath = result.path
+      shadowDirs = result.dirs
+    }
+    docu = shadowRoot
+  }
+  if (element) {
+    const elementData = formatElementInfo(element, docu, shadowPath, shadowDirs)
+    sendElementData(elementData)
+    frontCheckEnabled && highlightElements([element])
+  }
+}
+
+/**
+ * Handles mouse movement events to trigger element search logic with debouncing.
+ *
+ * This function clears any existing search timeouts, then sets a new timeout to
+ * perform a shallow element search after a short delay (`ELEMENT_SEARCH_TRIGGER`).
+ * After the shallow search, it sets another timeout to perform a deep element search
+ * after a longer delay (`DEEP_SEARCH_TRIGGER`). The deep search is enabled by toggling
+ * the `deepSearchEnabled` flag.
+ *
+ * @param ev - The mouse event that triggered the listener.
+ * @param docu - The document or shadow root context in which to search for elements.
+ * @param extra - Additional data to pass to the element search functions.
+ */
+function moveListener(ev: MouseEvent, docu: Document | ShadowRoot, extra) {
+  timeoutId && clearTimeout(timeoutId)
+  deepTimeoutId && clearTimeout(deepTimeoutId)
+
+  timeoutId = setTimeout(() => {
+    findElement(ev, docu, extra)
+    clearTimeout(timeoutId)
+
+    deepTimeoutId = setTimeout(() => {
+      deepSearchEnabled = true
+      findElement(ev, docu, extra)
+      deepSearchEnabled = false
+      clearTimeout(deepTimeoutId)
+    }, DEEP_SEARCH_TRIGGER)
+  }, ELEMENT_SEARCH_TRIGGER)
+}
+
+/**
+ * Formats and collects detailed information about a given HTML element, including its selectors, directories, tag, text, and bounding rectangle.
+ *
+ * @param element - The target HTML element to extract information from.
+ * @param target - The document or shadow root context in which the element resides.
+ * @param shadowPath - (Optional) The CSS selector path representing the shadow DOM hierarchy.
+ * @param shadowDirs - (Optional) An array of element directories representing the shadow DOM structure.
+ * @returns An object containing various properties describing the element, such as selectors, directories, tag, text, bounding rectangle, URL, and shadow root status.
+ */
+function formatElementInfo(element: HTMLElement, target: Document | ShadowRoot, shadowPath = '', shadowDirs: ElementDirectory[] = []) {
+  const cssSelector = getNthCssSelector(element)
+  const pathDirs = getElementDirectory(element)
+  const xpath = Utils.generateXPath(pathDirs) // generate xpath based on pathDirs
+  const selector = shadowPath ? `${shadowPath}>$shadow$>${cssSelector}` : cssSelector
+  const dirs = shadowDirs.length > 0 ? shadowDirs.concat([{ tag: '$shadow$', checked: true, value: '$shadow$', attrs: [] }], pathDirs) : pathDirs
+  const tag = Utils.getTag(element)
+  const innerText = Utils.pureText(getText(element)).substring(0, 10)
+  const text = innerText ? Utils.pureText(innerText) : 'unknown'
+  const elementData = {
+    matchTypes: [],
+    checkType: 'shadowRoot' in target ? 'customization' : 'visualization',
+    xpath,
+    cssSelector: selector,
+    pathDirs: dirs,
+    rect: getBoundingClientRect(element),
+    url: window.location.href,
+    shadowRoot: target instanceof ShadowRoot,
+    tag,
+    text,
+  }
+  return elementData
+}
+
+/**
+ * Scroll to search for elements. If not found, scroll to search
+ * Scroll the current window height up to 20 times at most
+ * SCROLL_TIMES = 20 max scroll times
+ * SCROLL_DELAY = 1500ms scroll delay
+ */
+async function scrollFindElement(data: ElementInfo) {
+  const windowHeight = window.innerHeight
+  let count = 1
+
+  while (count <= SCROLL_TIMES) {
+    window.scrollTo(window.scrollX, count * windowHeight)
+    await new Promise(resolve => setTimeout(resolve, SCROLL_DELAY))
+    const eles = getElementByElementInfo(data)
+    if (eles) {
+      return eles
+    }
+    count++
+  }
+  console.warn('Element lookup failed after maximum scroll attempts:', data)
+  return null
+}
+
+function elementNotFoundReason(data: ElementInfo) {
+  const { checkType } = data
+  if (!data.cssSelector && !data.xpath && checkType === 'customization') {
+    return Utils.fail(ErrorMessage.ELEMENT_INFO_INCOMPLETE, StatusCode.ELEMENT_NOT_FOUND)
+  }
+  if (data.pathDirs && data.pathDirs.length === 0 && checkType === 'visualization') {
+    return Utils.fail(ErrorMessage.ELEMENT_INFO_INCOMPLETE, StatusCode.ELEMENT_NOT_FOUND)
+  }
+  let message = ErrorMessage.ELEMENT_NOT_FOUND
+  const result = elementChangeWatcher(data)
+  if (!result.found) {
+    message = t('errors.elementChangedAtNode', { index: String(result.notFoundIndex), step: result.notFoundStep })
+  }
+  return Utils.fail(message, StatusCode.ELEMENT_NOT_FOUND)
+}
+
+/**
+ * Dispatches a sequence of mouse events on a specified DOM element.
+ *
+ * Each event type in the `events` array is dispatched asynchronously using `queueMicrotask`.
+ * The mouse events are initialized with the provided coordinates (`clientX`, `clientY`), or default to (0, 0).
+ *
+ * @param dom - The target HTMLElement to dispatch mouse events on.
+ * @param events - An array of mouse event types (e.g., 'mousedown', 'mouseup', 'click') to dispatch in order.
+ * @param coords - Optional coordinates for the mouse events. If not provided, defaults to `{ clientX: 0, clientY: 0 }`.
+ */
+function dispatchMouseSequence(
+  dom: HTMLElement,
+  events: string[],
+  coords?: { clientX?: number, clientY?: number },
+) {
+  const base: MouseEventInit = {
+    bubbles: true,
+    cancelable: true,
+    view: window,
+    clientX: coords?.clientX ?? 0,
+    clientY: coords?.clientY ?? 0,
+  }
+  for (const type of events) {
+    queueMicrotask(() => dom.dispatchEvent(new MouseEvent(type, base)))
+  }
+}
+
+const ContentHandler = {
+  ele: {
+    getElement: async (data: ElementInfo, isSelf = false, atomRun = false): Promise<null | HTMLElement[]> => {
+      const { matchTypes, filterVisible = false } = data
+      const isScrollFind = matchTypes && matchTypes.includes('scrollPosition') && !isSelf && !atomRun
+      let tempEles: HTMLElement[] | null = getElementByElementInfo(data)
+      if (!tempEles && isScrollFind) {
+        tempEles = (await scrollFindElement(data)) as HTMLElement[]
+      }
+      if (filterVisible && tempEles) {
+        // filter out elements that are not visible
+        tempEles = filterVisibleElements(tempEles)
+      }
+      return tempEles as HTMLElement[]
+    },
+
+    getDom: async (data: ElementInfo): Promise<HTMLElement | null> => {
+      const eles = await ContentHandler.ele.getElement(data)
+      const result = eles?.[eles.length - 1] ?? null
+      return result
+    },
+    getZTopElement: async (data: ElementInfo): Promise<HTMLElement | null> => {
+      const eles = await ContentHandler.ele.getElement(data)
+      if (!eles || eles.length === 0) {
+        return null
+      }
+      return getCoveredTopElement(eles)
+    },
+    getOuterHTML: async (data: ElementInfo) => {
+      const ele = await ContentHandler.ele.getDom(data)
+      const outerHTML = ele ? ele.outerHTML : ''
+      const abXpath = getXpath(ele, true)
+      return Utils.success({ ...data, abXpath, outerHTML, originXpath: abXpath })
+    },
+    checkElement: async (data: ElementInfo) => {
+      let checkEles = null
+      try {
+        checkEles = await ContentHandler.ele.getElement(data)
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+      frontCheckEnabled && checkEles && highlightElements(checkEles)
+      if (checkEles && checkEles.length === 1) {
+        const elementPos = getBoundingClientRect(checkEles[0])
+        return Utils.success({ rect: [elementPos] })
+      }
+      else if (checkEles && checkEles.length > 1) {
+        const elementPosArr = checkEles.map((ele: HTMLElement) => {
+          return getBoundingClientRect(ele)
+        })
+        return Utils.success({ rect: elementPosArr })
+      }
+      else {
+        return elementNotFoundReason(data)
+      }
+    },
+
+    getElementPos: async (data: ElementInfo) => {
+      try {
+        const ele = await ContentHandler.ele.getDom(data)
+        if (ele) {
+          const elementPos = getBoundingClientRect(ele)
+          return Utils.success({ rect: elementPos })
+        }
+        else {
+          return elementNotFoundReason(data)
+        }
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+    },
+
+    scrollIntoView: async (data: ElementInfo) => {
+      const { matchTypes, atomConfig } = data
+      let scrollEle: HTMLElement | null
+      try {
+        scrollEle = await ContentHandler.ele.getDom(data)
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+      if (scrollEle) {
+        if (atomConfig && !atomConfig.scrollIntoCenter) {
+          scrollEle.scrollIntoView(false)
+        }
+        else {
+          scrollEle.scrollIntoView({
+            behavior: 'instant',
+            block: 'center',
+          })
+        }
+        return Utils.success(true)
+      }
+      else {
+        const isScrollFind = matchTypes && matchTypes.includes('scrollPosition')
+        if (isScrollFind) {
+          return elementNotFoundReason(data)
+        }
+        return elementNotFoundReason(data)
+      }
+    },
+
+    elementFromSelect: async (data: ElementInfo) => {
+      const { domain = location.origin, url = location.href, shadowRoot } = data
+      let elements = null
+      try {
+        elements = await ContentHandler.ele.getElement(data)
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+      if (elements && elements.length === 1) {
+        const elementInfo = formatElementInfo(elements[0], document)
+        return Utils.success([{ ...data, ...elementInfo, domain, shadowRoot, url }])
+      }
+      else if (elements && elements.length > 1) {
+        const result = elements.map((ele: HTMLElement) => {
+          const elementInfo = formatElementInfo(ele, document)
+          return { ...data, ...elementInfo, domain, shadowRoot, url }
+        })
+        return Utils.success(result)
+      }
+      else {
+        return elementNotFoundReason(data)
+      }
+    },
+
+    elementIsRender: async (data: ElementInfo) => {
+      try {
+        const eles = await ContentHandler.ele.getElement({ ...data, filterVisible: true })
+        if (eles && eles.length > 0) {
+          return Utils.success(true)
+        }
+        else {
+          return Utils.success(false)
+        }
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+    },
+
+    elementIsReady: async (data: ElementInfo) => {
+      try {
+        const eles = await ContentHandler.ele.getElement(data)
+        if (eles && eles.length > 0) {
+          return Utils.success(true)
+        }
+        else {
+          return Utils.success(false)
+        }
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+    },
+    elementIsTable: async (data: ElementInfo) => {
+      try {
+        const ele = await ContentHandler.ele.getDom(data)
+        const res = ele ? isTable(ele) : false
+        return Utils.success(res)
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+    },
+
+    similarBatch: (data: ElementInfo) => {
+      try {
+        const res = similarBatch(data)
+        return Utils.success(res)
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+    },
+
+    tableDataBatch: (data: ElementInfo) => {
+      try {
+        const res = tableDataBatch(data)
+        return Utils.success(res)
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+    },
+
+    tableColumnDataBatch: (data: ElementInfo) => {
+      try {
+        const res = tableColumnDataBatch(data)
+        return Utils.success(res)
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+    },
+
+    tableHeaderBatch: (data: ElementInfo) => {
+      try {
+        const res = tableHeaderBatch(data)
+        return Utils.success(res)
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+    },
+
+    simalarListBatch: (data) => {
+      try {
+        const res = similarListBatch(data)
+        return Utils.success(res)
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+    },
+
+    similarElement: async (data: ElementInfo) => {
+      try {
+        const eles = await ContentHandler.ele.getElement(data)
+        return Utils.success({ similarCount: eles.length })
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+    },
+
+    reSimilarElement: async (data: ElementInfo) => {
+      const preEle = await ContentHandler.ele.getDom(data.preData)
+      const curEle = await ContentHandler.ele.getDom(data)
+      if (preEle && curEle) {
+        const preSelector = getNthCssSelector(preEle, true)
+        const prePathDirs = getElementDirectory(preEle)
+        const preXpath = Utils.generateXPath(prePathDirs)
+        const preElementInfo = { ...data.preData, pathDirs: prePathDirs, xpath: preXpath, cssSelector: preSelector }
+
+        const curSelector = getNthCssSelector(curEle, true)
+        const curPathDirs = getElementDirectory(curEle)
+        const curXpath = Utils.generateXPath(curPathDirs)
+        const curElementInfo = { ...data, pathDirs: curPathDirs, xpath: curXpath, cssSelector: curSelector }
+
+        return Utils.success({ ...curElementInfo, preData: preElementInfo })
+      }
+      else {
+        return Utils.success(null)
+      }
+    },
+
+    highLightColumn: async (data: ElementInfo & { produceType: string, columnIndex: number }) => {
+      if (highlightTime > 0)
+        return Utils.success({ rect: [] })
+      highlightTime = HIGH_LIGHT_DURATION
+      const { produceType, columnIndex } = data
+      const highlightColor = Utils.generateColor(columnIndex ? columnIndex - 1 : 0)
+      if (produceType === 'table') {
+        const ele = await ContentHandler.ele.getDom(data)
+        if (ele) {
+          const table = ele.closest('table')
+          const rect = []
+          const tds: { border: string, td: HTMLElement }[] = []
+          const th = table.querySelector(`th:nth-child(${columnIndex})`) as HTMLElement | null
+          const thborder = th?.style.border
+
+          if (th) {
+            th.style.border = HIGH_LIGHT_BORDER
+            th.style.borderColor = highlightColor
+            rect.push(getBoundingClientRect(th))
+          }
+
+          table.querySelectorAll('tr').forEach((tr) => {
+            const td = tr.querySelector(`td:nth-child(${columnIndex})`) as HTMLElement | null
+            if (td) {
+              const border = td.style.border
+              td.style.border = HIGH_LIGHT_BORDER
+              td.style.borderColor = highlightColor
+              tds.push({ border, td })
+              rect.push(getBoundingClientRect(td))
+            }
+          })
+
+          setTimeout(() => {
+            highlightTime = 0
+            if (th)
+              th.style.border = thborder
+            tds.forEach(({ td, border }) => {
+              td.style.border = border
+            })
+          }, HIGH_LIGHT_DURATION)
+
+          return Utils.success({ rect })
+        }
+        else {
+          highlightTime = 0
+          return elementNotFoundReason(data)
+        }
+      }
+      else {
+        const eles = await ContentHandler.ele.getElement(data)
+        if (eles && eles.length > 0) {
+          const rect = []
+          const simiEles = []
+          eles.forEach((ele) => {
+            const border = ele.style.border
+            ele.style.border = HIGH_LIGHT_BORDER
+            ele.style.borderColor = highlightColor
+            simiEles.push({
+              border,
+              ele,
+            })
+            rect.push(getBoundingClientRect(ele))
+          })
+          setTimeout(() => {
+            highlightTime = 0
+            simiEles.forEach((simiItem) => {
+              simiItem.ele.style.border = simiItem.border
+            })
+          }, HIGH_LIGHT_DURATION)
+          return Utils.success({ rect })
+        }
+        else {
+          highlightTime = 0
+          return elementNotFoundReason(data)
+        }
+      }
+    },
+    scrollToTop: () => {
+      window.scrollTo(0, 0)
+      return true
+    },
+
+    getRelativeElement: async (data: ElementInfo) => {
+      let ele: HTMLElement[]
+      const options = data?.relativeOptions as Options
+
+      try {
+        ele = await ContentHandler.ele.getElement(data)
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+      if (!ele) {
+        return elementNotFoundReason(data)
+      }
+      if (ele.length > 1) {
+        return Utils.fail(ErrorMessage.ELEMENT_MULTI_FOUND, StatusCode.EXECUTE_ERROR)
+      }
+
+      const { relativeType } = options
+
+      let findEl
+      try {
+        if (relativeType === 'child') {
+          findEl = getChildElementByType(ele[0], options)
+        }
+        if (relativeType === 'parent') {
+          findEl = ele[0].parentElement
+        }
+        if (relativeType === 'sibling') {
+          findEl = getSiblingElementByType(ele[0], options)
+        }
+        if (Array.isArray(findEl)) {
+          const elsInfo = findEl.map((item) => {
+            const info = formatElementInfo(item, document)
+            const mergeInfo = { ...data, ...info }
+            delete mergeInfo.rect
+            delete mergeInfo.text
+            delete mergeInfo.relativeOptions
+            return mergeInfo
+          })
+          return Utils.success(elsInfo)
+        }
+        else if (findEl) {
+          const info = formatElementInfo(findEl, document)
+          const elInfo = { ...data, ...info }
+          delete elInfo.rect
+          delete elInfo.text
+          delete elInfo.relativeOptions
+          return Utils.success(elInfo)
+        }
+        else {
+          return elementNotFoundReason(data)
+        }
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+    },
+
+    generateElement: (data: GenerateParamsT) => {
+      const { type, value, returnType } = data
+      let eles: HTMLElement[]
+      try {
+        if (type === 'xpath') {
+          eles = getElementsByXpath(value)
+        }
+        if (type === 'cssSelector') {
+          eles = getElementBySelector(value)
+        }
+        if (type === 'text') {
+          eles = getElementsByXpath(`//*[contains(text(),"${value}")]`)
+        }
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+      if (eles && eles.length > 0) {
+        eles = eles.filter(ele => ele.getBoundingClientRect().width > 0 && ele.getBoundingClientRect().height > 0)
+        const elementInfo = eles.map((item) => {
+          const obj = formatElementInfo(item, document)
+          const pureElementInfo = Utils.pureObject(obj, ['xpath', 'cssSelector', 'url', 'shadowRoot'])
+          Object.assign(pureElementInfo, { checkType: 'customization', matchTypes: [] })
+          return pureElementInfo
+        })
+        if (returnType === 'list') {
+          return Utils.success(elementInfo)
+        }
+        else {
+          return Utils.success(elementInfo[0])
+        }
+      }
+      else {
+        return Utils.fail(ErrorMessage.ELEMENT_NOT_FOUND, StatusCode.ELEMENT_NOT_FOUND)
+      }
+    },
+
+    async getParentElement(data: ElementInfo) {
+      const currentElement = await ContentHandler.ele.getDom(data)
+      const parentElement = currentElement?.parentElement || null
+      // if parent element found, return parent element info
+      if (parentElement) {
+        const elementInfo = formatElementInfo(parentElement, document)
+        const parentInfo = { ...data, ...elementInfo, abXpath: getXpath(parentElement, true), outerHTML: parentElement.outerHTML }
+        return Utils.success(parentInfo)
+      }
+      else {
+        return Utils.fail(ErrorMessage.ELEMENT_PARENT_NOT_FOUND, StatusCode.ELEMENT_NOT_FOUND)
+      }
+    },
+    async getChildElement(data: ElementInfo) {
+      const { originXpath = '', abXpath } = data // origin element xpath
+      let childElement = null
+      if (!originXpath) {
+        return Utils.fail(ErrorMessage.ELEMENT_CHILD_ORIGIN_NOT_FOUND, StatusCode.ELEMENT_NOT_FOUND)
+      }
+      // compare current xpath with origin xpath to find changed child element
+      const originXpathArr = originXpath.split('/')
+      const currentXpathArr = abXpath.split('/')
+      const currentElement = await ContentHandler.ele.getDom(data)
+      if (originXpathArr.length > currentXpathArr.length) {
+        const childXpath = originXpathArr.slice(0, currentXpathArr.length + 1).join('/')
+        childElement = getElementByXPath(childXpath)
+        if (childElement) {
+          const elementInfo = formatElementInfo(childElement, document)
+          const childInfo = { ...data, ...elementInfo, abXpath: getXpath(childElement, true), outerHTML: childElement.outerHTML }
+          return Utils.success(childInfo)
+        }
+        return Utils.fail(ErrorMessage.ELEMENT_CHILD_NOT_FOUND, StatusCode.ELEMENT_NOT_FOUND)
+      }
+      if (originXpathArr.length <= currentXpathArr.length) {
+        const children = Array.from(currentElement.children)
+        if (children.length > 0) {
+          const visiableChild = children.find((child) => {
+            const style = window.getComputedStyle(child)
+            return style.display !== 'none' && style.visibility !== 'hidden' && child.getBoundingClientRect().width > 0 && child.getBoundingClientRect().height > 0
+          })
+          if (visiableChild) {
+            childElement = visiableChild as HTMLElement
+            const elementInfo = formatElementInfo(childElement, document)
+            const childInfo = { ...data, ...elementInfo, abXpath: getXpath(childElement, true), outerHTML: childElement.outerHTML }
+            return Utils.success(childInfo)
+          }
+          else {
+            return Utils.fail(ErrorMessage.ELEMENT_CHILD_NOT_FOUND, StatusCode.ELEMENT_NOT_FOUND)
+          }
+        }
+        else {
+          return Utils.fail(ErrorMessage.ELEMENT_CHILD_NOT_FOUND, StatusCode.ELEMENT_NOT_FOUND)
+        }
+      }
+    },
+
+    // ---v3
+    clickElement: async (data: ElementInfo) => {
+      const result = await ContentHandler.ele.getZTopElement(data)
+      const { buttonType } = data.atomConfig
+      if (!result)
+        return elementNotFoundReason(data)
+
+      try {
+        switch (buttonType) {
+          case 'right':
+            dispatchMouseSequence(result, ['mousedown', 'mouseup', 'contextmenu'])
+            break
+          case 'dbclick':
+            dispatchMouseSequence(result, ['mousedown', 'mouseup', 'click', 'mousedown', 'mouseup', 'click', 'dblclick'])
+            break
+          case 'click':
+          default:
+            dispatchMouseSequence(result, ['mousedown', 'mouseup', 'click'])
+        }
+      }
+      catch (e) {
+        return Utils.fail(`点击元素失败: ${e}`, StatusCode.EXECUTE_ERROR)
+      }
+      return Utils.success(true)
+    },
+
+    inputElement: async (data: ElementInfo) => {
+      const result = await ContentHandler.ele.getZTopElement(data) as HTMLInputElement | HTMLTextAreaElement | null
+      const { inputText } = data.atomConfig
+      if (result) {
+        if (result.tagName !== 'INPUT' && result.tagName !== 'TEXTAREA') {
+          return Utils.fail(ErrorMessage.ELEMENT_NOT_INPUT, StatusCode.EXECUTE_ERROR)
+        }
+        // Set value using native setter to trigger Vue/React updates
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          result.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype,
+          'value',
+        )?.set
+        if (nativeInputValueSetter) {
+          nativeInputValueSetter.call(result, inputText)
+        }
+        else {
+          result.value = inputText
+        }
+
+        // Trigger input event for React controlled components
+        const inputEvent = new Event('input', { bubbles: true, cancelable: true })
+        result.dispatchEvent(inputEvent)
+
+        // Trigger change event for Vue and other frameworks
+        const changeEvent = new Event('change', { bubbles: true, cancelable: true })
+        result.dispatchEvent(changeEvent)
+
+        return Utils.success(true)
+      }
+      else {
+        return elementNotFoundReason(data)
+      }
+    },
+
+    getElementText: async (data: ElementInfo) => {
+      const result = (await ContentHandler.ele.getDom(data))
+      if (result) {
+        if (result.tagName === 'INPUT' || result.tagName === 'TEXTAREA') {
+          return Utils.success((result as HTMLInputElement).value)
+        }
+        else {
+          const text = getText(result)
+          return Utils.success(text)
+        }
+      }
+      else {
+        return elementNotFoundReason(data)
+      }
+    },
+
+    getElementAttrs: async (data: ElementInfo) => {
+      const result = await ContentHandler.ele.getDom(data)
+      const { operation, attrName } = data.atomConfig
+      if (result) {
+        let value = null
+        switch (operation) {
+          case '0':
+            value = getText(result)
+            break
+          case '1':
+            value = result.outerHTML
+            break
+          case '2':
+            value = (result as HTMLInputElement).value || result.getAttribute('value')
+            break
+          case '3':
+            value = (result as HTMLImageElement).src || (result as HTMLAnchorElement).href || ''
+            break
+          case '4':
+          {
+            if (attrName) {
+              value = result.getAttribute(attrName) || ''
+            }
+            else {
+              const allAttrs: Record<string, string> = {}
+              for (let i = 0; i < result.attributes.length; i++) {
+                const attr = result.attributes[i]
+                allAttrs[attr.name] = attr.value
+              }
+              value = allAttrs
+            }
+            break
+          }
+          case '5':
+            value = getBoundingClientRect(result)
+            break
+          case '6':
+            if (result.tagName !== 'INPUT') {
+              return Utils.fail(ErrorMessage.ELEMENT_NOT_CHECKED, StatusCode.EXECUTE_ERROR)
+            }
+            value = (result as HTMLInputElement).checked
+            break
+          case '7':
+          {
+            const styleDecl = window.getComputedStyle(result)
+            if (attrName) {
+              // Support camelCase or kebab-case
+              const cssName = attrName.includes('-')
+                ? attrName
+                : attrName.replace(/[A-Z]/g, m => `-${m.toLowerCase()}`)
+              value = styleDecl.getPropertyValue(cssName) || (result.style as any)[attrName] || ''
+            }
+            else {
+              const allStyles: Record<string, string> = {}
+              for (let i = 0; i < styleDecl.length; i++) {
+                const prop = styleDecl[i]
+                allStyles[prop] = styleDecl.getPropertyValue(prop)
+              }
+              value = allStyles
+            }
+            break
+          }
+          default:
+            return Utils.fail(ErrorMessage.UPDATE_TIP, StatusCode.EXECUTE_ERROR)
+        }
+        return Utils.success(value)
+      }
+      else {
+        return elementNotFoundReason(data)
+      }
+    },
+
+    removeElementAttr: async (data: ElementInfo) => {
+      const result = await ContentHandler.ele.getDom(data)
+      const { attrName } = data.atomConfig
+      if (result) {
+        result.removeAttribute(attrName)
+        return Utils.success(true)
+      }
+      else {
+        return elementNotFoundReason(data)
+      }
+    },
+
+    setElementAttr: async (data: ElementInfo) => {
+      const result = await ContentHandler.ele.getDom(data)
+      const { attrName, attrValue } = data.atomConfig
+      if (result) {
+        result.setAttribute(attrName, attrValue)
+        return Utils.success(true)
+      }
+      else {
+        return elementNotFoundReason(data)
+      }
+    },
+
+    getElementChecked: async (data: ElementInfo) => {
+      const result = (await ContentHandler.ele.getDom(data)) as HTMLInputElement
+      if (result) {
+        if (result.type === 'checkbox' || result.type === 'radio') {
+          return Utils.success(result.checked)
+        }
+        else {
+          return Utils.fail(ErrorMessage.ELEMENT_NOT_SELECT, StatusCode.EXECUTE_ERROR)
+        }
+      }
+      else {
+        return elementNotFoundReason(data)
+      }
+    },
+
+    setElementChecked: async (data: ElementInfo) => {
+      const result = (await ContentHandler.ele.getDom(data)) as HTMLInputElement
+      const { checked, reverse } = data.atomConfig
+      if (result) {
+        if (result.type === 'checkbox' || result.type === 'radio') {
+          if (reverse) {
+            result.click()
+          }
+          else {
+            if (result.checked !== checked) {
+              result.click()
+            }
+            result.checked = checked
+          }
+          return Utils.success(true)
+        }
+        else {
+          return Utils.fail(ErrorMessage.ELEMENT_NOT_SELECT, StatusCode.EXECUTE_ERROR)
+        }
+      }
+      else {
+        return elementNotFoundReason(data)
+      }
+    },
+
+    getElementSelected: async (data: ElementInfo) => {
+      const result = (await ContentHandler.ele.getDom(data)) as HTMLSelectElement
+      const { option } = data.atomConfig
+      if (result) {
+        if (result.tagName !== 'SELECT') {
+          return Utils.fail(ErrorMessage.ELEMENT_NOT_SELECT, StatusCode.EXECUTE_ERROR)
+        }
+        if (option === 'selected') {
+          const list = Array.from(result.selectedOptions).map((option) => {
+            return {
+              label: option.label || '',
+              value: option.value || '',
+            }
+          })
+          return Utils.success(list)
+        }
+        else {
+          const list = Array.from(result.options).map((option) => {
+            return {
+              label: option.label || '',
+              value: option.value || '',
+            }
+          })
+          return Utils.success(list)
+        }
+      }
+      else {
+        return elementNotFoundReason(data)
+      }
+    },
+
+    setElementSelected: async (data: ElementInfo) => {
+      const result = (await ContentHandler.ele.getDom(data)) as HTMLSelectElement
+      const { value, pattern, indexValue } = data.atomConfig
+      if (result) {
+        if (result.tagName !== 'SELECT') {
+          return Utils.fail(ErrorMessage.ELEMENT_NOT_SELECT, StatusCode.EXECUTE_ERROR)
+        }
+        const options = result.options
+        for (let i = 0; i < options.length; i++) {
+          if (pattern === 'contains' && options[i].label.includes(value)) {
+            result.value = options[i].value
+          }
+
+          if (pattern === 'equal' && options[i].label === value) {
+            result.value = options[i].value
+          }
+
+          if (pattern === 'index' && i + 1 === indexValue) {
+            result.value = options[i].value
+          }
+        }
+        result.dispatchEvent(new Event('change', { bubbles: true }))
+        return Utils.success(true)
+      }
+      else {
+        return elementNotFoundReason(data)
+      }
+    },
+
+    getTableData: async (data: ElementInfo) => {
+      const result = (await ContentHandler.ele.getDom(data)) as HTMLTableElement
+      if (result) {
+        if (isTable(result)) {
+          const res = tableDataFormatterProcure(result)
+          return Utils.success(res)
+        }
+        else {
+          return Utils.fail(ErrorMessage.ELEMENT_NOT_TABLE, StatusCode.EXECUTE_ERROR)
+        }
+      }
+      else {
+        return elementNotFoundReason(data)
+      }
+    },
+
+    scrollWindow: async (data: ElementInfo) => {
+      let target: Window | HTMLElement = window
+      if (data.xpath || data.cssSelector || data.pathDirs) {
+        target = await ContentHandler.ele.getDom(data)
+      }
+      if (!target) {
+        return elementNotFoundReason(data)
+      }
+      const { scrollTo, scrollAxis, scrollX = 0, scrollY = 0, scrollBehavior = 'instant' } = data.atomConfig
+      if (scrollTo === 'top') {
+        target.scrollTo({
+          top: 0,
+          behavior: scrollBehavior,
+        })
+      }
+      if (scrollTo === 'left') {
+        target.scrollTo({
+          left: 0,
+          behavior: scrollBehavior,
+        })
+      }
+      if (scrollTo === 'bottom') {
+        target.scrollTo({
+          top: 99999,
+          behavior: scrollBehavior,
+        })
+      }
+      if (scrollTo === 'right') {
+        target.scrollTo({
+          left: 99999,
+          behavior: scrollBehavior,
+        })
+      }
+      if (scrollTo === 'custom' && scrollAxis === 'x') {
+        target.scrollTo({
+          left: scrollX,
+          behavior: scrollBehavior,
+        })
+      }
+      if (scrollTo === 'custom' && scrollAxis === 'y') {
+        target.scrollTo({
+          top: scrollY,
+          behavior: scrollBehavior,
+        })
+      }
+      return Utils.success(true)
+    },
+  },
+  code: {
+    runJS: (data: { code: string }) => {
+      try {
+        const { code } = data
+        // eslint-disable-next-line no-new-func
+        const res = new Function(code)()
+        return Utils.success(res)
+      }
+      catch (e) {
+        const errStr = `runJS ${e.toString()}`
+        return Utils.fail(errStr, StatusCode.EXECUTE_ERROR)
+      }
+    },
+  },
+  frame: {
+    getFrames: () => {
+      const frames = getWindowFrames()
+      return Utils.success(frames)
+    },
+    getFramePosition(data: { url?: string, iframeXpath?: string }) {
+      const { url, iframeXpath } = data
+      const defaultRect = { x: 0, y: 0, width: 0, height: 0, left: 0, top: 0, right: 0, bottom: 0 }
+      if (iframeXpath) {
+        const frameDom = getElementByXPath(iframeXpath)
+        if (frameDom) {
+          const frameRect = getFrameContentRect(frameDom)
+          return frameRect
+        }
+        return defaultRect
+      }
+      if (url) {
+        const frames = getWindowFrames()
+        const bestMatch = UrlMatcher.findBestMatch(
+          url,
+          frames.map(f => f.src),
+        )
+        if (bestMatch?.result.level >= UrlMatchLevel.DOMAIN) {
+          const frame = frames.find(f => f.src === bestMatch.url)
+          if (frame?.rect) {
+            return frame.rect
+          }
+        }
+        return defaultRect
+      }
+      return defaultRect
+    },
+    getFrameInfo(data: { frameId: number }) {
+      const { frameId } = data
+      console.log(`rpa_debugger_on:${frameId}`) // !!! Do not delete. Rely on this code to determine which frame chrome.debugger is injected into
+      currentFrameInfo.frameId = frameId
+      document.documentElement.dataset.astronFrameId = String(frameId)
+      tagFrames()
+      return currentFrameInfo
+    },
+    findIframeId(xpath: string) {
+      const iframeEle = getElementByXPath(xpath)
+      if (iframeEle) {
+        const frameId = iframeEle.dataset.astronFrameId
+        return { frameId: frameId ? Number(frameId) : null }
+      }
+      else {
+        return { frameId: null }
+      }
+    },
+    getIframeElement(data: Point) {
+      const { x, y } = data
+      const dpr = window.devicePixelRatio
+      const realX = x / dpr
+      const realY = y / dpr
+      const iframeEle = document.elementFromPoint(realX, realY) as HTMLElement
+      if (iframeEle) {
+        const { left, top } = iframeEle.getBoundingClientRect()
+        const borderLeft = Number.parseInt(window.getComputedStyle(iframeEle).borderLeftWidth)
+        const borderTop = Number.parseInt(window.getComputedStyle(iframeEle).borderTopWidth)
+        const paddingLeft = Number.parseInt(window.getComputedStyle(iframeEle).paddingLeft)
+        const paddingTop = Number.parseInt(window.getComputedStyle(iframeEle).paddingTop)
+        const nextPos = {
+          x: (realX - left - borderLeft - paddingLeft) * dpr,
+          y: (realY - top - borderTop - paddingTop) * dpr,
+        }
+        let iframeContentRect = null
+        if (FRAME_ELEMENT_TAGS.includes(iframeEle.tagName.toLowerCase())) {
+          iframeContentRect = {
+            x: (left + borderLeft + paddingLeft) * dpr,
+            y: (top + borderTop + paddingTop) * dpr,
+          }
+          tagFrames()
+        }
+        const iframeInfo = formatElementInfo(iframeEle, document)
+        return { ...iframeInfo, nextPos, iframeContentRect }
+      }
+    },
+    elementLocatorFrameId: async (data: ElementInfo) => {
+      let checkEles = null
+      try {
+        checkEles = await ContentHandler.ele.getElement(data)
+      }
+      catch (error) {
+        return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+      }
+      if (checkEles && checkEles.length > 0) {
+        return { frameId: currentFrameInfo.frameId }
+      }
+      else {
+        return { frameId: null }
+      }
+    },
+    stopLoad() {
+      window.stop()
+      return true
+    },
+  },
+  page: {
+
+    fullPageRect: () => {
+      const rootScrollable = document.compatMode === 'BackCompat' ? document.body : document.documentElement
+      const sizeLimit = 2 ** 13
+      const zoomedSizeLimit = Math.floor(sizeLimit / window.devicePixelRatio)
+      return {
+        x: 0,
+        y: 0,
+        width: Math.min(rootScrollable.scrollWidth, zoomedSizeLimit),
+        height: Math.min(rootScrollable.scrollHeight, zoomedSizeLimit),
+      }
+    },
+
+    getDPR: () => {
+      return { dpr: window.devicePixelRatio }
+    },
+  },
+}
+
+function executeHandler(key: string, data, isAsync: boolean = true) {
+  try {
+    if (ContentHandler.ele[key]) {
+      return isAsync ? ContentHandler.ele[key](data) : ContentHandler.ele[key](data)
+    }
+    else if (ContentHandler.code[key]) {
+      return ContentHandler.code[key](data)
+    }
+    else if (ContentHandler.frame[key]) {
+      return ContentHandler.frame[key](data)
+    }
+    else if (ContentHandler.page[key]) {
+      return ContentHandler.page[key](data)
+    }
+    else {
+      return Utils.fail(ErrorMessage.UNSUPPORT_ERROR)
+    }
+  }
+  catch (error) {
+    return handleError(error)
+  }
+}
+
+function handleError(error) {
+  if (error instanceof SyntaxError) {
+    return Utils.fail(ErrorMessage.SYNTAX_ERROR + error.message, StatusCode.EXECUTE_ERROR)
+  }
+  if (error instanceof TypeError) {
+    return Utils.fail(ErrorMessage.TYPE_ERROR + error.message, StatusCode.EXECUTE_ERROR)
+  }
+  if (error instanceof ReferenceError) {
+    return Utils.fail(ErrorMessage.REFERENCE_ERROR + error.message, StatusCode.EXECUTE_ERROR)
+  }
+  return Utils.fail(error.toString(), StatusCode.EXECUTE_ERROR)
+}
+
+async function handle(params) {
+  const { key, data } = params
+  return await executeHandler(key, data, true)
+}
+
+function handleSync(params) {
+  const { key, data } = params
+  return executeHandler(key, data, false)
+}
+function RpaExtGetElement(data) {
+  try {
+    const eles = getElementByElementInfo(data)
+    return eles?.[eles.length - 1] || null
+  }
+  catch (error) {
+    throw new Error(error.toString())
+  }
+}
+
+loadIframe()
+keepServiceWorkerAlive()
+window.addEventListener('load', loadIframe)
+window.addEventListener('load', notifyContentLoaded)
+// @ts-expect-error Mount to window
+window.handle = handle
+// @ts-expect-error  Mount to window
+window.handleSync = handleSync
+// @ts-expect-error  Mount to window
+window.RpaExtGetElement = RpaExtGetElement
+// @ts-expect-error Mount to window
+window.currentFrameInfo = currentFrameInfo
+export { ContentHandler, dispatchMouseSequence, formatElementInfo, handle, moveListener }

@@ -1,0 +1,25 @@
+atomic:
+  Dialog.message_box:
+    icon: message-dialog
+    path:
+    - /atomicTree/dialog
+  Dialog.input_box:
+    icon: input-dialog
+    path:
+    - /atomicTree/dialog
+  Dialog.select_box:
+    icon: select-dialog
+    path:
+    - /atomicTree/dialog
+  Dialog.select_time_box:
+    icon: datetime-picker
+    path:
+    - /atomicTree/dialog
+  Dialog.select_file_box:
+    icon: file-select-dialog
+    path:
+    - /atomicTree/dialog
+  Dialog.custom_box:
+    icon: custom-dialog
+    path:
+    - /atomicTree/dialog

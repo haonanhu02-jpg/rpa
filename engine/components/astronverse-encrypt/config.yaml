@@ -1,0 +1,25 @@
+atomic:
+  Encrypt.md5_encrypt:
+    icon: md5-encrypt
+    path:
+    - /atomicTree/os/encrypt
+  Encrypt.sha_encrypt:
+    icon: sha-encrypt
+    path:
+    - /atomicTree/os/encrypt
+  Encrypt.symmetric_encrypt:
+    icon: symmetric-encrypt
+    path:
+    - /atomicTree/os/encrypt
+  Encrypt.symmetric_decrypt:
+    icon: symmetric-decrypt
+    path:
+    - /atomicTree/os/encrypt
+  Encrypt.base64_encoding:
+    icon: base64-encode
+    path:
+    - /atomicTree/os/encrypt
+  Encrypt.base64_decoding:
+    icon: base64-decode
+    path:
+    - /atomicTree/os/encrypt
