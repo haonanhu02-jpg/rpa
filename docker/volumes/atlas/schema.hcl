@@ -6218,7 +6218,8 @@ table "openai_workflows" {
   }
   column "parameters" {
     null    = true
-    type    = text
+    type    = mediumtext
+    charset = "utf8mb4"
     comment = "存储JSON字符串格式的参数"
   }
   primary_key {
@@ -6258,12 +6259,14 @@ table "openai_executions" {
   }
   column "parameters" {
     null    = true
-    type    = text
+    type    = mediumtext
+    charset = "utf8mb4"
     comment = "执行参数（JSON格式）"
   }
   column "result" {
     null    = true
-    type    = text
+    type    = mediumtext
+    charset = "utf8mb4"
     comment = "执行结果（JSON格式）"
   }
   column "error" {
@@ -6303,14 +6306,67 @@ table "openai_executions" {
     type    = datetime
     comment = "结束时间"
   }
+  column "protocol" {
+    null = true
+    type = int
+  }
+  column "idempotency_key_hash" {
+    null = true
+    type = varchar(64)
+  }
+  column "request_hash" {
+    null = true
+    type = varchar(64)
+  }
+  column "client_id" {
+    null = true
+    type = varchar(36)
+  }
+  column "run_id" {
+    null = true
+    type = varchar(100)
+  }
+  column "dispatch_state" {
+    null = true
+    type = varchar(20)
+  }
+  column "started_at" {
+    null = true
+    type = datetime
+  }
+  column "execution_timeout" {
+    null = true
+    type = int
+  }
+  column "cancel_requested" {
+    null = false
+    type = bool
+    default = false
+  }
+  column "cancel_supported" {
+    null = false
+    type = bool
+    default = false
+  }
+  column "secret_fields" {
+    null = true
+    type = text
+  }
+  column "data_contract" {
+    null = true
+    type = mediumtext
+    charset = "utf8mb4"
+    comment = "受理时冻结的JSON数据契约"
+  }
   primary_key {
     columns = [column.id]
   }
-  foreign_key "openai_executions_ibfk_1" {
-    columns     = [column.project_id]
-    ref_columns = [table.openai_workflows.column.project_id]
-    on_update   = NO_ACTION
-    on_delete   = CASCADE
+  index "uq_execution_user_key" {
+    unique = true
+    columns = [column.user_id, column.idempotency_key_hash]
+  }
+  index "ix_openai_executions_dispatch_state" {
+    columns = [column.dispatch_state]
   }
   index "idx_project_id" {
     columns = [column.project_id]

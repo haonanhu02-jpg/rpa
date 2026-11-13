@@ -161,6 +161,7 @@ while (( SECONDS < DEADLINE )); do
     sleep 5
 done
 [[ "$SYNCED" = true ]] || fail "$REASON"
+step '停止 OpenAPI 以执行迁移' '无法停止本项目 OpenAPI，已中止数据库迁移。' docker compose stop openapi-service
 step '执行数据库迁移' 'Atlas 数据库迁移失败；业务服务未启动，请检查数据库连接或 schema 差异。' docker compose run --rm atlas
 step '启动业务服务和网关' '容器创建失败，请检查端口、同名容器及启动配置。' docker compose up -d --no-build --no-deps ai-service openapi-service resource-service robot-service rpa-auth openresty-nginx
 

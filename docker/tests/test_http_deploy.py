@@ -311,6 +311,7 @@ case "$*" in
 "info --format"*) echo linux;;
 "ps -aq"*) [ "$SCENARIO" != old_database ] || echo old-mysql;;
 "compose build") [ "$SCENARIO" != build_failure ];;
+"compose stop openapi-service") [ "$SCENARIO" != stop_failure ];;
 *) exit 0;;
 esac
 """,
@@ -374,6 +375,14 @@ bash "$1"
         self.assertIn("http://192.168.3.110:32742/health", result.stdout)
         self.assertNotIn(" down", calls)
         self.assertNotIn("volume rm", calls)
+        self.assertLess(calls.index("compose stop openapi-service"), calls.index("compose run --rm atlas"))
+        self.assertLess(calls.index("compose run --rm atlas"), calls.index("--no-deps ai-service"))
+
+    def test_failed_openapi_stop_prevents_schema_migration(self):
+        result, calls = self.run_deployment("stop_failure")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("停止 OpenAPI", result.stderr)
+        self.assertNotIn("run --rm atlas", calls)
 
     def test_build_failure_does_not_restart_services(self):
         result, calls = self.run_deployment("build_failure")
