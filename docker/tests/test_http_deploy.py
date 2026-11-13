@@ -312,6 +312,7 @@ case "$*" in
 "ps -aq"*) [ "$SCENARIO" != old_database ] || echo old-mysql;;
 "compose build") [ "$SCENARIO" != build_failure ];;
 "compose stop openapi-service") [ "$SCENARIO" != stop_failure ];;
+"compose exec -T openresty-nginx nginx -t") [ "$SCENARIO" != nginx_config_failure ];;
 *) exit 0;;
 esac
 """,
@@ -377,6 +378,14 @@ bash "$1"
         self.assertNotIn("volume rm", calls)
         self.assertLess(calls.index("compose stop openapi-service"), calls.index("compose run --rm atlas"))
         self.assertLess(calls.index("compose run --rm atlas"), calls.index("--no-deps ai-service"))
+        self.assertLess(calls.index("--no-deps ai-service"), calls.index("openresty-nginx nginx -t"))
+        self.assertLess(calls.index("openresty-nginx nginx -t"), calls.index("openresty-nginx nginx -s reload"))
+
+    def test_invalid_nginx_config_never_reloads_or_reports_success(self):
+        result, calls = self.run_deployment("nginx_config_failure")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("nginx -s reload", calls)
+        self.assertNotIn("部署成功", result.stdout)
 
     def test_failed_openapi_stop_prevents_schema_migration(self):
         result, calls = self.run_deployment("stop_failure")

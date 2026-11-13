@@ -164,6 +164,8 @@ done
 step '停止 OpenAPI 以执行迁移' '无法停止本项目 OpenAPI，已中止数据库迁移。' docker compose stop openapi-service
 step '执行数据库迁移' 'Atlas 数据库迁移失败；业务服务未启动，请检查数据库连接或 schema 差异。' docker compose run --rm atlas
 step '启动业务服务和网关' '容器创建失败，请检查端口、同名容器及启动配置。' docker compose up -d --no-build --no-deps ai-service openapi-service resource-service robot-service rpa-auth openresty-nginx
+step '校验网关配置' '网关配置校验失败，未执行重新加载。' docker compose exec -T openresty-nginx nginx -t
+step '刷新网关上游地址' '本项目网关重新加载失败，请检查网关日志。' docker compose exec -T openresty-nginx nginx -s reload
 
 STAGE='验证服务可用性'
 REASON='服务检查失败。'
