@@ -1,13 +1,15 @@
-#name: rpa-opensource-studio
+name: astron-rpa
 x-env-file: &env_file
   - .env
 
 volumes:
   mysql_data:
+    name: ${RPA_MYSQL_VOLUME:-astron-rpa_mysql_data}
+    external: ${RPA_MYSQL_VOLUME_EXTERNAL:-false}
 
 services:
   mysql:
-    image: mysql:8.4.6
+    image: ${MYSQL_IMAGE:-mysql:8.4.6}
     container_name: rpa-opensource-mysql
     restart: always
     environment:
@@ -24,30 +26,7 @@ services:
       - ./volumes/mysql/init_his_data_enum_data.sql:/docker-entrypoint-initdb.d/04-init_data.sql
       - ./volumes/mysql/init_sample_template_data.sql:/docker-entrypoint-initdb.d/05-init_data.sql
       - ./volumes/mysql/init_c_atom_meta_new_data.sql:/docker-entrypoint-initdb.d/06-init_data.sql
-    command: |
-      bash -c "
-      cp /etc/mysql/conf.d/my.cnf /etc/mysql/conf.d/my1.cnf &&
-      
-      (
-        echo 'Wait for MySQL to start...';
-        until mysqladmin ping -h localhost -u root -p'${DATABASE_PASSWORD}' --silent; do
-          sleep 5;
-        done;
-        
-        echo 'MySQL is up! Running incremental scripts...';
-        
-        for f in /docker-entrypoint-initdb.d/*.sql; do
-          if [[ \"\$$f\" != *\"01-schema.sql\" ]]; then
-            echo \"Running \$$f ...\";
-            mysql -u root -p'${DATABASE_PASSWORD}' ${DATABASE_NAME} < \"\$$f\";
-          fi
-        done;
-        
-        echo 'All scripts finished.';
-      ) &
-      
-      docker-entrypoint.sh mysqld
-      "
+    command: ["mysqld"]
     healthcheck:
       test:
         [
@@ -80,39 +59,22 @@ services:
     env_file: *env_file
 
   redis:
-    image: bitnami/redis:latest
+    image: redis:7.4.7-alpine
     container_name: rpa-opensource-redis
     restart: always
-    user: root
-    privileged: true
     env_file: *env_file
-    environment:
-      - REDIS_AOF_ENABLED=no
-      - REDIS_PORT_NUMBER=${REDIS_PORT}
-      - REDIS_IO_THREADS=4
-      - ALLOW_EMPTY_PASSWORD=yes
-    # ports:
-    #  - "${REDIS_PORT}:6379"
     volumes:
-      - ./data/bitnami/redis:/bitnami/redis/data:rw,Z
-    command: >
-      bash -c "
-        /opt/bitnami/scripts/redis/setup.sh
-        # Set proper permissions for data directories
-        chown -R redis:redis /bitnami/redis/data
-        chmod g+s /bitnami/redis/data
-
-        exec /opt/bitnami/scripts/redis/entrypoint.sh /opt/bitnami/scripts/redis/run.sh
-      "
+      - ./data/redis:/data
+    command: ['redis-server', '--port', '${REDIS_PORT}', '--appendonly', 'no']
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ['CMD', 'redis-cli', '-p', '${REDIS_PORT}', 'ping']
       interval: 5s
       timeout: 10s
       retries: 10
       start_period: 10s
     networks:
       - rpa-opensource-network
-  
+
   minio:
     image: minio/minio:RELEASE.2025-06-13T11-33-47Z-cpuv1
     container_name: rpa-opensource-minio

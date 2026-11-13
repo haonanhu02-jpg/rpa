@@ -118,6 +118,7 @@ fi
 cd "$APP_DIR/docker"
 # Do not let inherited CLI settings accidentally select another deployment.
 unset COMPOSE_FILE COMPOSE_PATH_SEPARATOR
+export COMPOSE_PROJECT_NAME=astron-rpa
 HELPER="$APP_DIR/docker/scripts/http-deploy.py"
 [[ -f "$HELPER" ]] || fail '仓库中缺少 docker/scripts/http-deploy.py，请确认已推送部署脚本。'
 if [[ ! -e .env ]]; then
@@ -129,6 +130,10 @@ if [[ ! -e .env ]]; then
 fi
 step '准备 HTTP 配置' '配置生成失败；已有 .env 必须包含有效的数据库和 MinIO 凭据，且不能是符号链接。' python3 "$HELPER" prepare --server-ip "$SERVER_IP"
 step '校验 Compose' 'Compose 配置无效，请检查 .env 和 Compose 版本。' docker compose config --quiet
+STAGE='检查部署项目隔离'
+REASON='检测到容器项目归属冲突；已停止部署，未重建任何服务。'
+echo ">>> $STAGE"
+python3 "$HELPER" guard --server-ip "$SERVER_IP" 2>&1 | tee -a "$LOG_FILE"
 # Scope builder selection and mirror cache to this deployment process/project.
 export BUILDX_BUILDER=default
 export DOCKER_BUILDKIT=1

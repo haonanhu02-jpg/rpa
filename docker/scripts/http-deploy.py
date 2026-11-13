@@ -55,6 +55,7 @@ def prepare(server_ip):
     credentials = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(credentials)
     values = {
+        "COMPOSE_PROJECT_NAME": "astron-rpa",
         "COMPOSE_PATH_SEPARATOR": ":",
         "COMPOSE_FILE": "docker-compose.yml:docker-compose.legacy-http.yml:docker-compose.local-build.yml",
         "DEPLOYMENT_MODE": "legacy-http",
@@ -113,6 +114,47 @@ def request(url):
         return error.code, error.read(65536).decode("utf-8", errors="replace")
     except (urllib.error.URLError, TimeoutError, OSError):
         raise ValueError("HTTP 无法连接：" + url) from None
+
+
+def guard(server_ip):
+    """Refuse to adopt containers managed by another Compose project."""
+    ipaddress.IPv4Address(server_ip)
+    config = json.loads(compose("config", "--format", "json"))
+    if config.get("name") != "astron-rpa":
+        raise ValueError("Compose 项目名必须为 astron-rpa，拒绝使用可能与其他服务冲突的项目名")
+    for service in config["services"].values():
+        name = service.get("container_name")
+        if not name:
+            continue
+        result = subprocess.run(
+            ["docker", "ps", "--all", "--quiet", "--filter", f"name=^/{name}$"],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
+        if result.returncode:
+            raise ValueError("无法确认容器归属，已停止部署")
+        if not result.stdout.strip():
+            continue
+        result = subprocess.run(
+            ["docker", "inspect", name],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
+        if result.returncode:
+            raise ValueError("无法检查已有容器 " + name)
+        labels = json.loads(result.stdout)[0].get("Config", {}).get("Labels", {}) or {}
+        if labels.get("com.docker.compose.project") != "astron-rpa":
+            raise ValueError("容器 " + name + " 归属其他项目；请先保留数据并完成 RPA 迁移，禁止直接接管或清理其他项目")
+        working_dir = labels.get("com.docker.compose.project.working_dir")
+        if working_dir and Path(working_dir).resolve() != ROOT.resolve():
+            raise ValueError("容器 " + name + " 来自另一部署目录，已停止部署")
+    print("项目隔离检查通过：astron-rpa；未执行容器接管或清理。")
 
 
 # Runs inside openapi-service, so private service ports need no public mapping.
@@ -201,11 +243,11 @@ def verify(server_ip):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("prepare", "verify"))
+    parser.add_argument("action", choices=("prepare", "guard", "verify"))
     parser.add_argument("--server-ip", required=True)
     args = parser.parse_args()
     try:
-        (prepare if args.action == "prepare" else verify)(args.server_ip)
+        {"prepare": prepare, "guard": guard, "verify": verify}[args.action](args.server_ip)
     except ValueError as error:
         print(str(error))
         return 1

@@ -17,6 +17,40 @@ SPEC.loader.exec_module(DEPLOY)
 
 
 class HttpDeployTest(unittest.TestCase):
+    def test_guard_rejects_shared_docker_project_before_container_operations(self):
+        with (
+            patch.object(DEPLOY, "compose", return_value='{"name":"docker","services":{}}'),
+            patch.object(DEPLOY.subprocess, "run") as run,
+            self.assertRaisesRegex(ValueError, "项目名"),
+        ):
+            DEPLOY.guard("192.168.3.110")
+        run.assert_not_called()
+
+    def test_guard_refuses_to_adopt_foreign_project_container(self):
+        config = '{"name":"astron-rpa","services":{"redis":{"container_name":"rpa-opensource-redis"}}}'
+        calls = []
+
+        def run(args, **kwargs):
+            calls.append(args)
+            output = "old-id" if args[1] == "ps" else '[{"Config":{"Labels":{"com.docker.compose.project":"docker"}}}]'
+            return subprocess.CompletedProcess(args, 0, output, "")
+
+        with (
+            patch.object(DEPLOY, "compose", return_value=config),
+            patch.object(DEPLOY.subprocess, "run", side_effect=run),
+            self.assertRaisesRegex(ValueError, "归属其他项目"),
+        ):
+            DEPLOY.guard("192.168.3.110")
+        self.assertEqual([call[1] for call in calls], ["ps", "inspect"])
+
+    def test_guard_allows_empty_isolated_project(self):
+        config = '{"name":"astron-rpa","services":{"redis":{"container_name":"rpa-opensource-redis"}}}'
+        with (
+            patch.object(DEPLOY, "compose", return_value=config),
+            patch.object(DEPLOY.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")),
+        ):
+            DEPLOY.guard("192.168.3.110")
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
@@ -193,6 +227,11 @@ case "$*" in
 esac
 """,
                 "python3": """case "$*" in
+*" guard "*)
+ if [ "$SCENARIO" = project_collision ]; then
+  echo '容器归属其他项目，已停止部署'
+  exit 1
+ fi;;
 *" verify "*)
  if [ "$SCENARIO" = readiness_failure ]; then
   echo 'openapi-service 内部 HTTP/依赖就绪检查失败'
@@ -252,6 +291,13 @@ bash "$1"
         self.assertIn("构建当前后端源码", result.stderr)
         self.assertNotIn("compose up", calls)
         self.assertNotIn("部署成功", result.stdout)
+
+    def test_project_collision_stops_before_build_or_container_start(self):
+        result, calls = self.run_deployment("project_collision")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("检查部署项目隔离", result.stderr)
+        self.assertNotIn("compose build", calls)
+        self.assertNotIn("compose up", calls)
 
     def test_image_acceleration_failure_never_builds_or_starts_services(self):
         result, calls = self.run_deployment("image_failure")

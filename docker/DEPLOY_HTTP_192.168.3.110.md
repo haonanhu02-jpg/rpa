@@ -96,8 +96,25 @@ Central 设置重试相同命令，保留 `opensource` profile 和已下载依�
 检查 token；已有 `.env` 会保留原密码和认证证书，并更新 HTTP 地址。
 如果检测到已有数据库容器或当前 Compose 项目的数据卷却缺少 `.env`，
 脚本会停止，要求恢复原配置，不会为旧数据库重新生成密码。
-项目目录名为 `docker`，默认 Compose 项目名也是 `docker`；已有部署若设置过
-`COMPOSE_PROJECT_NAME`，更新时必须继续使用相同值。
+Compose 项目名固定为 `astron-rpa`，避免与 Dify 等同样使用 `docker/` 目录的
+服务共享项目名。启动前检查固定容器名的归属：发现旧 `docker` 项目下的 RPA
+容器时会停止，必须保留原数据库卷和 `.env` 并单独迁移，不能直接重新部署。
+不得对共享的 `docker` 项目执行 `down` 或 `--remove-orphans`。
+旧脚本曾以 `docker` 项目部署的主机，需要先确认并恢复被误重建的原项目 Redis；
+不要根据 RPA 配置操作其他项目的容器。
+
+针对旧脚本已与 Dify 共用 `docker` 项目名、MySQL 报 x86-64-v2 错误的部署，
+提供 `python3 scripts/recover-shared-project.py` 只读预检，确认后加 `--apply`。
+它核对四个 RPA 容器的标签和来源目录、Dify 原 Compose 文件及 MySQL 数据卷。
+仅当 MySQL 卷为空时，才允许改用已存在的官方 `mysql:8.0.43-debian` 标签；
+非空卷会停止，绝不降级已有 8.4 数据库。应用前先实际运行兼容镜像的
+`--version`，确认此服务器 CPU 可以执行，再备份 `.env` 并保留原 MySQL 卷。
+随后仅移除四个失败的 RPA 容器（不删卷），使用 Dify 容器记录的原配置恢复
+Dify 的 `redis` 单个服务，不操作其他 Dify 服务，之后再以独立项目重新部署 RPA。
+
+Redis 已改用官方 `redis:7.4.7-alpine` 的原生入口及 `/data` 挂载，避免 Bitnami
+手工重复 setup/chown 引起的配置权限问题。MySQL 使用官方原生入口执行首次
+初始化 SQL，不再在后台重复执行初始化脚本；已有部署的后续数据迁移需显式执行。
 
 流程依次为：获取代码、准备配置、通过加速站准备本项目镜像、构建当前源码、启动基础
 服务、等待 Casdoor 并同步凭据、执行 Atlas 迁移、启动业务服务、验证入口。
