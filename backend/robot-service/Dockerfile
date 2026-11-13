@@ -5,18 +5,21 @@ FROM maven:3.8.6-jdk-8 AS build
 
 # 设置工作目录
 WORKDIR /app
+ARG MAVEN_MIRROR_URL=https://maven.aliyun.com/repository/public
+ENV MAVEN_MIRROR_URL=${MAVEN_MIRROR_URL}
+COPY docker/maven/ /opt/astron-rpa-maven/
 
 # 复制Maven配置文件
 COPY backend/robot-service/pom.xml .
 
 # 下载依赖（利用Docker缓存层）
-RUN mvn dependency:go-offline -B
+RUN sh /opt/astron-rpa-maven/mvn-rpa.sh dependency:go-offline
 
 # 复制源代码
 COPY backend/robot-service/src ./src
 
 # 构建应用
-RUN mvn clean package -DskipTests
+RUN sh /opt/astron-rpa-maven/mvn-rpa.sh clean package -DskipTests
 
 # 第二阶段：构建可执行镜像
 FROM eclipse-temurin:8-jre AS runtime

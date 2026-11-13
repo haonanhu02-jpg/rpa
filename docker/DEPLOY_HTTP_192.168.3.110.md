@@ -78,7 +78,17 @@ Python 镜像安装使用从各服务 `uv.lock` 导出的 `requirements.lock`，
 不修改服务器 pip 全局配置。更新 Python 依赖后，在服务目录执行
 `uv export --frozen --no-dev --no-emit-project --format requirements.txt --output-file requirements.lock`。
 
-这个加速范围不包括容器内的 apt、Maven 依赖下载；如果这些步骤失败，
+三个 Java 服务的构建使用 `docker/maven/` 中的项目级 settings 和脚本，
+将 Maven Central 的依赖及插件下载映射到阿里云公共仓库。失败后使用官方
+Central 设置重试相同命令，保留 `opensource` profile 和已下载依赖。
+现有私有仓库不会被镜像规则重定向；不会修改服务器 `~/.m2/settings.xml`。
+如需其他镜像，可设置构建参数 `MAVEN_MIRROR_URL`（仅 HTTPS）。
+日志会显示 `astron-rpa-aliyun` 及 `maven.aliyun.com`；回退时明确显示提示。
+重新构建会使受配置影响的 Java 构建层重新执行。镜像不可用或真实编译错误
+导致两个尝试均失败时，构建仍会返回失败，不会误报成功。
+参考 [Maven 官方镜像说明](https://maven.apache.org/guides/mini/guide-mirror-settings)。
+
+这个加速范围不包括容器内的 apt 依赖下载；如果这些步骤失败，
 脚本会在构建阶段报告失败并保留私有日志。镜像缓存、应用镜像和构建缓存仍
 占用本机磁盘空间。
 

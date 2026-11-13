@@ -25,15 +25,21 @@ services:
     build:
       context: ..
       dockerfile: backend/resource-service/Dockerfile
+      args:
+        MAVEN_MIRROR_URL: ${MAVEN_MIRROR_URL:-https://maven.aliyun.com/repository/public}
   robot-service:
     image: astron-rpa-local/robot-service:local
     pull_policy: never
     build:
       context: ..
       dockerfile: backend/robot-service/Dockerfile
+      args:
+        MAVEN_MIRROR_URL: ${MAVEN_MIRROR_URL:-https://maven.aliyun.com/repository/public}
   rpa-auth:
     image: astron-rpa-local/rpa-auth:local
     pull_policy: never
     build:
       context: ..
       dockerfile: backend/rpa-auth/Dockerfile
+      args:
+        MAVEN_MIRROR_URL: ${MAVEN_MIRROR_URL:-https://maven.aliyun.com/repository/public}

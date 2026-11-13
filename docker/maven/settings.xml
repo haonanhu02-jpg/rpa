@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <mirrors>
+    <mirror>
+      <id>astron-rpa-aliyun</id>
+      <name>AstronRPA Maven Central acceleration</name>
+      <url>${env.MAVEN_MIRROR_URL}</url>
+      <!-- Applies to dependencies and plugins; private repositories keep their URLs. -->
+      <mirrorOf>central</mirrorOf>
+    </mirror>
+  </mirrors>
+</settings>
