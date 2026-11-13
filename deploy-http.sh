@@ -134,6 +134,7 @@ STAGE='检查部署项目隔离'
 REASON='检测到容器项目归属冲突；已停止部署，未重建任何服务。'
 echo ">>> $STAGE"
 python3 "$HELPER" guard --server-ip "$SERVER_IP" 2>&1 | tee -a "$LOG_FILE"
+step '修正本项目只读配置权限' '初始化配置权限修正失败。' python3 "$HELPER" materials --server-ip "$SERVER_IP"
 # Scope builder selection and mirror cache to this deployment process/project.
 export BUILDX_BUILDER=default
 export DOCKER_BUILDKIT=1
@@ -143,7 +144,9 @@ echo ">>> $STAGE（不修改服务器 Docker 配置）"
 python3 "$APP_DIR/docker/scripts/project-images.py" 2>&1 | tee -a "$LOG_FILE"
 step '校验项目镜像缓存配置' '生成的项目镜像缓存配置无效。' docker compose config --quiet
 step '构建当前后端源码' '构建失败，请在私有日志中检查 Maven/Python 依赖下载、编译错误或磁盘空间。' docker compose build
-step '启动数据库和基础服务' 'MySQL、Redis、MinIO 或 Casdoor 启动失败或健康检查超时。' docker compose up -d --wait --wait-timeout "$DEPLOY_TIMEOUT" mysql redis minio casdoor
+step '启动数据库和基础服务' 'MySQL、Redis 或 MinIO 启动失败或健康检查超时。' docker compose up -d --wait --wait-timeout "$DEPLOY_TIMEOUT" mysql redis minio
+step '确认业务和认证数据库' '无法创建或确认 RPA/Casdoor 数据库，请检查 MySQL 认证及初始化日志。' python3 "$HELPER" databases --server-ip "$SERVER_IP"
+step '启动 Casdoor' 'Casdoor 启动失败，请检查其数据库连接和初始化日志。' docker compose up -d --wait --wait-timeout "$DEPLOY_TIMEOUT" casdoor
 
 STAGE='同步 Casdoor 凭据'
 REASON='Casdoor 初始化或凭据读取超时，请检查 MySQL/Casdoor 日志以及 .env 中的数据库密码。'

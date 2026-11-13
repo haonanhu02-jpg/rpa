@@ -29,7 +29,7 @@ SERVICES = (
 )
 
 
-def compose(*args):
+def compose(*args, data=None):
     result = subprocess.run(
         ["docker", "compose", *args],
         check=False,
@@ -37,6 +37,7 @@ def compose(*args):
         capture_output=True,
         text=True,
         encoding="utf-8",
+        input=data,
         timeout=35,
     )
     if result.returncode:
@@ -86,14 +87,24 @@ def prepare(server_ip):
         values["MONITORING_TOKEN"] = secrets.token_hex(24)
     content = credentials.update_env(content, values)
     if existing:
-        required = ("DATABASE_PASSWORD", "CASDOOR_DATABASE_PASSWORD", "MINIO_AK", "MINIO_SK")
+        required = (
+            "DATABASE_PASSWORD",
+            "CASDOOR_DATABASE_PASSWORD",
+            "MINIO_AK",
+            "MINIO_SK",
+        )
         for key in required:
             if not re.search(r"^" + key + r"[ \t]*=[ \t]*['\"]?[^'\"\s]+", content, re.MULTILINE):
                 raise ValueError("已有配置缺少必要凭据：" + key)
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", newline="\n", dir=ROOT, prefix=".http-deploy-", delete=False
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            dir=ROOT,
+            prefix=".http-deploy-",
+            delete=False,
         ) as stream:
             temporary = stream.name
             os.chmod(temporary, 0o600)
@@ -103,6 +114,86 @@ def prepare(server_ip):
         if temporary and os.path.exists(temporary):
             os.unlink(temporary)
     print("HTTP 配置已就绪；凭据已保存在 .env，未显示。")
+
+
+def databases(server_ip):
+    ipaddress.IPv4Address(server_ip)
+    config = json.loads(compose("config", "--format", "json"))
+    if config.get("name") != "astron-rpa":
+        raise ValueError("拒绝对非 astron-rpa 项目执行建库")
+    environment = config["services"]["rpa-auth"]["environment"]
+    names = (environment["DATABASE_NAME"], environment["CASDOOR_DATABASE_NAME"])
+    if any(not re.fullmatch(r"[A-Za-z0-9_]+", name) for name in names):
+        raise ValueError("数据库名称只允许字母、数字和下划线")
+    query = "\n".join(
+        f"CREATE DATABASE IF NOT EXISTS `{name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
+        for name in dict.fromkeys(names)
+    )
+    compose(
+        "exec",
+        "-T",
+        "mysql",
+        "sh",
+        "-c",
+        'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -u root --batch',
+        data=query,
+    )
+
+    def sql(query):
+        return compose(
+            "exec",
+            "-T",
+            "mysql",
+            "sh",
+            "-c",
+            'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -u root --batch --skip-column-names --default-character-set=utf8mb4',
+            data=query,
+        ).strip()
+
+    if names != ("rpa", "casdoor"):
+        raise ValueError("当前初始化 SQL 使用 rpa/casdoor 库名，请勿自定义库名后自动导入")
+    count = int(sql("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='rpa';"))
+    if count == 0:
+        sql((ROOT / "volumes/mysql/schema.sql").read_text(encoding="utf-8"))
+        print("空业务库的初始表结构已导入。")
+    seeds = {
+        "app_market_dict": "init_app_market_dict_data.sql",
+        "his_data_enum": "init_his_data_enum_data.sql",
+        "sample_templates": "init_sample_template_data.sql",
+        "c_atom_meta_new": "init_c_atom_meta_new_data.sql",
+    }
+    for table, filename in seeds.items():
+        if int(sql(f"SELECT COUNT(*) FROM rpa.`{table}`;")) == 0:
+            sql("USE rpa;\n" + (ROOT / "volumes/mysql" / filename).read_text(encoding="utf-8"))
+            print("已填充空的初始化表：" + table)
+    print("RPA 和 Casdoor 数据库已确认存在；未删除数据或重设密码。")
+
+
+def materials(server_ip):
+    ipaddress.IPv4Address(server_ip)
+    # These are public checked-in bootstrap assets, never deployment secrets/data.
+    for directory in ("mysql", "nginx", "atlas", "casdoor"):
+        root = ROOT / "volumes" / directory
+        if root.is_symlink():
+            raise ValueError("配置目录不能是符号链接：" + directory)
+        root.chmod(0o755)
+        for path in root.rglob("*"):
+            if path.is_symlink():
+                raise ValueError("配置文件不能是符号链接")
+            if path.is_dir():
+                path.chmod(0o755)
+            elif path.suffix in (
+                ".sql",
+                ".cnf",
+                ".conf",
+                ".lua",
+                ".sh",
+                ".template",
+                ".json",
+                ".hcl",
+            ):
+                path.chmod(0o644)
+    print("本项目公开初始化配置权限已修正；未改动 .env、数据目录或其他项目。")
 
 
 def request(url):
@@ -199,7 +290,12 @@ def verify(server_ip):
         if len(ids) != 1:
             raise ValueError(name + " 容器不存在或数量异常")
         result = subprocess.run(
-            ["docker", "inspect", ids[0]], check=False, capture_output=True, text=True, encoding="utf-8", timeout=10
+            ["docker", "inspect", ids[0]],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
         )
         if result.returncode:
             raise ValueError(name + " 容器状态读取失败")
@@ -209,7 +305,16 @@ def verify(server_ip):
         if state.get("Health", {}).get("Status", "healthy") != "healthy":
             raise ValueError(name + " 健康检查尚未通过")
     result = subprocess.run(
-        ["docker", "compose", "exec", "-T", "openapi-service", "python", "-c", INTERNAL_CHECK],
+        [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "openapi-service",
+            "python",
+            "-c",
+            INTERNAL_CHECK,
+        ],
         check=False,
         cwd=ROOT,
         capture_output=True,
@@ -219,7 +324,12 @@ def verify(server_ip):
     )
     if result.returncode:
         # Only output known messages from our checker, never container stderr.
-        for name in ("ai-service", "openapi-service", "robot-service", "resource-service"):
+        for name in (
+            "ai-service",
+            "openapi-service",
+            "robot-service",
+            "resource-service",
+        ):
             if name + " 内部 HTTP/依赖就绪检查失败" in result.stdout:
                 raise ValueError(name + " 内部 HTTP/依赖就绪检查失败")
         raise ValueError("内部服务检查命令执行失败")
@@ -243,11 +353,17 @@ def verify(server_ip):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("prepare", "guard", "verify"))
+    parser.add_argument("action", choices=("prepare", "guard", "materials", "databases", "verify"))
     parser.add_argument("--server-ip", required=True)
     args = parser.parse_args()
     try:
-        {"prepare": prepare, "guard": guard, "verify": verify}[args.action](args.server_ip)
+        {
+            "prepare": prepare,
+            "guard": guard,
+            "materials": materials,
+            "databases": databases,
+            "verify": verify,
+        }[args.action](args.server_ip)
     except ValueError as error:
         print(str(error))
         return 1

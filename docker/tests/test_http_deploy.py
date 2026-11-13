@@ -17,6 +17,87 @@ SPEC.loader.exec_module(DEPLOY)
 
 
 class HttpDeployTest(unittest.TestCase):
+    def test_databases_create_missing_catalogs_idempotently_without_password_arguments(
+        self,
+    ):
+        config = {
+            "name": "astron-rpa",
+            "services": {
+                "rpa-auth": {
+                    "environment": {
+                        "DATABASE_NAME": "rpa",
+                        "CASDOOR_DATABASE_NAME": "casdoor",
+                    }
+                }
+            },
+        }
+        with patch.object(
+            DEPLOY,
+            "compose",
+            side_effect=[json.dumps(config), "", "1", "1", "1", "1", "1"],
+        ) as compose:
+            DEPLOY.databases("192.168.3.110")
+        command = compose.call_args_list[1]
+        self.assertIn("CREATE DATABASE IF NOT EXISTS `casdoor`", command.kwargs["data"])
+        self.assertNotIn("DROP", command.kwargs["data"])
+        self.assertIn('MYSQL_PWD="$MYSQL_ROOT_PASSWORD"', command.args[-1])
+        self.assertFalse(any("TRUNCATE" in call.kwargs.get("data", "") for call in compose.call_args_list))
+
+    def test_databases_repairs_empty_initialized_volume(self):
+        config = {
+            "name": "astron-rpa",
+            "services": {
+                "rpa-auth": {
+                    "environment": {
+                        "DATABASE_NAME": "rpa",
+                        "CASDOOR_DATABASE_NAME": "casdoor",
+                    }
+                }
+            },
+        }
+        directory = self.root / "volumes/mysql"
+        directory.mkdir(parents=True)
+        filenames = [
+            "schema.sql",
+            "init_app_market_dict_data.sql",
+            "init_his_data_enum_data.sql",
+            "init_sample_template_data.sql",
+            "init_c_atom_meta_new_data.sql",
+        ]
+        for filename in filenames:
+            (directory / filename).write_text("-- fixture " + filename, encoding="utf-8")
+        responses = [json.dumps(config), "", "0", ""] + ["0", ""] * 4
+        with patch.object(DEPLOY, "compose", side_effect=responses) as compose:
+            DEPLOY.databases("192.168.3.110")
+        queries = [call.kwargs.get("data", "") for call in compose.call_args_list]
+        for filename in filenames:
+            self.assertTrue(any("-- fixture " + filename in query for query in queries))
+
+    def test_materials_fixes_bind_mount_assets_without_changing_secrets(self):
+        for directory in ("mysql", "nginx", "atlas", "casdoor"):
+            path = self.root / "volumes" / directory
+            path.mkdir(parents=True)
+            path.chmod(0o700)
+        config = self.root / "volumes/mysql/my.cnf"
+        config.write_text("[mysqld]\n")
+        config.chmod(0o600)
+        secret = self.root / ".env"
+        secret.write_text("private")
+        secret.chmod(0o600)
+        DEPLOY.materials("192.168.3.110")
+        self.assertEqual(secret.read_text(), "private")
+        if os.name != "nt":
+            self.assertEqual(config.stat().st_mode & 0o777, 0o644)
+            self.assertEqual(config.parent.stat().st_mode & 0o777, 0o755)
+            self.assertEqual(secret.stat().st_mode & 0o777, 0o600)
+
+    def test_databases_rejects_foreign_project(self):
+        with (
+            patch.object(DEPLOY, "compose", return_value='{"name":"docker"}'),
+            self.assertRaisesRegex(ValueError, "拒绝"),
+        ):
+            DEPLOY.databases("192.168.3.110")
+
     def test_guard_rejects_shared_docker_project_before_container_operations(self):
         with (
             patch.object(DEPLOY, "compose", return_value='{"name":"docker","services":{}}'),
@@ -47,7 +128,11 @@ class HttpDeployTest(unittest.TestCase):
         config = '{"name":"astron-rpa","services":{"redis":{"container_name":"rpa-opensource-redis"}}}'
         with (
             patch.object(DEPLOY, "compose", return_value=config),
-            patch.object(DEPLOY.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")),
+            patch.object(
+                DEPLOY.subprocess,
+                "run",
+                return_value=subprocess.CompletedProcess([], 0, "", ""),
+            ),
         ):
             DEPLOY.guard("192.168.3.110")
 
@@ -115,7 +200,10 @@ class HttpDeployTest(unittest.TestCase):
     def mock_run(self, args, **kwargs):
         if args[:2] == ["docker", "inspect"]:
             return subprocess.CompletedProcess(
-                args, 0, json.dumps([{"State": {"Status": "running", "Health": {"Status": "healthy"}}}]), ""
+                args,
+                0,
+                json.dumps([{"State": {"Status": "running", "Health": {"Status": "healthy"}}}]),
+                "",
             )
         return subprocess.CompletedProcess(args, 0, "内部服务检查通过", "")
 
@@ -232,6 +320,8 @@ esac
   echo '容器归属其他项目，已停止部署'
   exit 1
  fi;;
+*" databases "*)
+ if [ "$SCENARIO" = database_failure ]; then exit 1; fi;;
 *" verify "*)
  if [ "$SCENARIO" = readiness_failure ]; then
   echo 'openapi-service 内部 HTTP/依赖就绪检查失败'
@@ -291,6 +381,12 @@ bash "$1"
         self.assertIn("构建当前后端源码", result.stderr)
         self.assertNotIn("compose up", calls)
         self.assertNotIn("部署成功", result.stdout)
+
+    def test_catalog_creation_failure_does_not_start_casdoor(self):
+        result, calls = self.run_deployment("database_failure")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("确认业务和认证数据库", result.stderr)
+        self.assertFalse(any(line.startswith("compose up") and line.endswith("casdoor") for line in calls.splitlines()))
 
     def test_project_collision_stops_before_build_or_container_start(self):
         result, calls = self.run_deployment("project_collision")
