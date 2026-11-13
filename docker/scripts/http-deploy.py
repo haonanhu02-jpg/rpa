@@ -256,7 +256,9 @@ checks = [
     ("ai-service", "http://ai-service:8010/", "json"),
     ("openapi-service", "http://127.0.0.1:8020/health/ready", "ready"),
     ("robot-service", "http://robot-service:8040/api/robot/", "java"),
-    ("resource-service", "http://resource-service:8030/api/resource/", "java"),
+    # Omit fileId deliberately: parameter validation returns 400/500001 before
+    # reading any file. The unmapped context root is converted to 500 by Spring.
+    ("resource-service", "http://resource-service:8030/api/resource/file/download", "resource"),
 ]
 for name, url, kind in checks:
     headers = {"Authorization": "Bearer " + os.environ.get("MONITORING_TOKEN", "")} if kind == "ready" else {}
@@ -267,7 +269,10 @@ for name, url, kind in checks:
             response = error
         code = response.code
         body = response.read(65536)
-        if kind == "java":
+        if kind == "resource":
+            data = json.loads(body)
+            assert code == 400 and str(data.get("code")) == "500001"
+        elif kind == "java":
             assert code in (200, 401, 403, 404)
         else:
             assert code == 200
